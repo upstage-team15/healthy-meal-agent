@@ -4,7 +4,9 @@ app/agents/mock_agent.py
 나중에 이 흐름을 그대로 LangGraph 노드로 감싸면 됨.
 """
 
-from app.schemas import AgentState, UserProfile
+from collections.abc import Callable
+
+from app.schemas import AgentState, UserConditions, UserProfile
 from app.services.condition_extractor import extract_conditions_stub
 from app.services.food_retriever import retrieve_foods
 from app.services.meal_composer import compose_meal
@@ -14,11 +16,16 @@ from app.services.validator import validate_meal
 MAX_RETRY = 2
 
 
-def run_agent(user_message: str, profile: UserProfile = None) -> AgentState:
+def run_agent(
+    user_message: str,
+    profile: UserProfile = None,
+    extractor: Callable[[str], UserConditions] = extract_conditions_stub,
+) -> AgentState:
+    """추천 파이프라인. extractor를 주입해 stub/Solar를 갈아끼울 수 있다(기본: stub)."""
     state = AgentState(user_message=user_message, profile=profile or UserProfile())
 
     # ① 조건 추출
-    state.conditions = extract_conditions_stub(user_message)
+    state.conditions = extractor(user_message)
 
     # ② 후보 검색
     candidates = retrieve_foods(state.conditions, state.profile)
