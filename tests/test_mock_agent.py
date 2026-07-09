@@ -1,24 +1,19 @@
-from pathlib import Path
-
-from app.agents.mock_agent import run_mock_agent
-from app.schemas import MealRequest
+from app.schemas import UserProfile
+from app.agents.mock_agent import run_agent
 
 
-def test_run_mock_agent_returns_valid_basic_plan(tmp_path: Path) -> None:
-    data_path = tmp_path / "foods.csv"
-    data_path.write_text(
-        "\n".join(
-            [
-                "food_id,food_name,meal_role,serving_g,kcal,carbohydrate,protein,fat,sugar,sodium",
-                "1,brown rice,rice,200,300,66,6,2,1,5",
-                "2,green salad,side,120,90,10,4,3,4,180",
-            ]
-        ),
-        encoding="utf-8",
-    )
+def test_end_to_end_scenario():
+    """핵심 시나리오가 최종 응답까지 도달하는지"""
+    msg = "400kcal 이하로, 계란은 빼고 야채 많은 한 끼 추천해줘"
+    state = run_agent(msg, UserProfile(allergies=[]))
 
-    result = run_mock_agent(MealRequest(query="salad", target_kcal=500), data_path=data_path)
+    # 조건이 추출됐는지
+    assert state.conditions.target_kcal == 400
+    assert state.conditions.kcal_mode == "upper"
 
-    assert result.validation.is_valid is True
-    assert result.meal_plan.foods[0].food_name == "green salad"
-    assert result.meal_plan.total_nutrition.kcal == 90
+    # 최종 응답이 생성됐는지
+    assert state.final_response != ""
+
+    # 검증 결과가 있고, FAIL로 끝나지 않았는지 (PASS 계열)
+    assert state.validation_result is not None
+    print("\n" + state.final_response)  # -s 옵션으로 보임

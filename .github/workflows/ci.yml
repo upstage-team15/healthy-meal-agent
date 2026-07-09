@@ -87,6 +87,7 @@ jobs:
 
       - name: Run AI reviewer
         env:
+          GH_TOKEN: ${{ github.token }}
           UPSTAGE_API_KEY: ${{ secrets.UPSTAGE_API_KEY }}
           LLM_MODEL: ${{ secrets.LLM_MODEL || 'solar-pro3' }}
         run: |

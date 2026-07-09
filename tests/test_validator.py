@@ -1,24 +1,54 @@
-from app.schemas import FoodItem, MealPlan
-from app.services.nutrition_calculator import calculate_total_nutrition
+from app.schemas import MealPlan, FoodItem, NutritionTotal, UserConditions, UserProfile
 from app.services.validator import validate_meal
 
 
-def test_validate_meal_rejects_calorie_overage() -> None:
-    food = FoodItem(
+def _food(name="김밥", kcal=300, sodium=500):
+    return FoodItem(
         food_id=1,
-        food_name="rice",
-        meal_role="rice",
-        serving_g=200,
-        kcal=300,
-        carbohydrate=66,
-        protein=6,
-        fat=2,
-        sugar=1,
-        sodium=5,
+        food_name=name,
+        meal_role="한그릇",
+        serving_size=200,
+        kcal=kcal,
+        carbohydrate=40,
+        protein=10,
+        fat=8,
+        sugar=3,
+        sodium=sodium,
     )
-    meal_plan = MealPlan(foods=[food], total_nutrition=calculate_total_nutrition([food]))
 
-    result = validate_meal(meal_plan, target_kcal=250)
 
-    assert result.is_valid is False
-    assert "Total calories exceed the target." in result.reasons
+def test_calorie_over_fails():
+    """칼로리 초과 → FAIL"""
+    mp = MealPlan(meal_type="한그릇", items=[_food(kcal=600)])
+    nt = NutritionTotal(total_kcal=600, total_sodium=300)
+    cond = UserConditions(target_kcal=400, kcal_mode="upper")
+    vr = validate_meal(mp, nt, cond, UserProfile())
+    assert vr.status == "FAIL"
+
+
+def test_sodium_over_1500_fails():
+    """나트륨 1500 초과 → FAIL"""
+    mp = MealPlan(meal_type="한그릇", items=[_food(sodium=1600)])
+    nt = NutritionTotal(total_kcal=350, total_sodium=1600)
+    cond = UserConditions(target_kcal=400, kcal_mode="upper")
+    vr = validate_meal(mp, nt, cond, UserProfile())
+    assert vr.status == "FAIL"
+
+
+def test_sodium_warning():
+    """나트륨 900 → PASS_WITH_WARNING"""
+    mp = MealPlan(meal_type="한그릇", items=[_food(sodium=900)])
+    nt = NutritionTotal(total_kcal=350, total_sodium=900)
+    cond = UserConditions(target_kcal=400, kcal_mode="upper")
+    vr = validate_meal(mp, nt, cond, UserProfile())
+    assert vr.status == "PASS_WITH_WARNING"
+
+
+def test_allergy_included_fails():
+    """알레르기 음식 포함 → FAIL"""
+    mp = MealPlan(meal_type="한그릇", items=[_food(name="계란볶음밥")])
+    nt = NutritionTotal(total_kcal=350, total_sodium=300)
+    cond = UserConditions(target_kcal=400, kcal_mode="upper")
+    prof = UserProfile(allergies=["계란"])
+    vr = validate_meal(mp, nt, cond, prof)
+    assert vr.status == "FAIL"

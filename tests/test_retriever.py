@@ -1,22 +1,26 @@
-from pathlib import Path
+from app.schemas import UserConditions, UserProfile
+from app.services.food_retriever import retrieve_foods, load_foods
 
-from app.services.food_retriever import retrieve_foods
+
+def test_load_foods():
+    """CSV 로딩되고 음식이 있는지"""
+    foods = load_foods()
+    assert len(foods) > 0
 
 
-def test_retrieve_foods_filters_by_query_and_calories(tmp_path: Path) -> None:
-    data_path = tmp_path / "foods.csv"
-    data_path.write_text(
-        "\n".join(
-            [
-                "food_id,food_name,meal_role,serving_g,kcal,carbohydrate,protein,fat,sugar,sodium",
-                "1,brown rice,rice,200,300,66,6,2,1,5",
-                "2,green salad,side,120,90,10,4,3,4,180",
-            ]
-        ),
-        encoding="utf-8",
-    )
+def test_retrieve_returns_candidates():
+    """조건 검색 시 후보가 나오는지"""
+    cond = UserConditions(target_kcal=400, kcal_mode="upper", preferences=["야채 많은"])
+    result = retrieve_foods(cond, UserProfile())
+    total = sum(len(v) for v in result.values())
+    assert total > 0
 
-    foods = retrieve_foods(query="salad", target_kcal=120, data_path=data_path)
 
-    assert len(foods) == 1
-    assert foods[0].food_name == "green salad"
+def test_allergy_excluded():
+    """알레르기 음식이 후보에서 빠지는지"""
+    cond = UserConditions(target_kcal=400, kcal_mode="upper")
+    prof = UserProfile(allergies=["계란"])
+    result = retrieve_foods(cond, prof)
+    for foods in result.values():
+        for f in foods:
+            assert "계란" not in f.food_name
