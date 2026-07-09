@@ -2,7 +2,7 @@
 
 Healthy Meal Agent is an AI agent project for recommending meals based on user conditions and validating them against nutrition guidelines.
 
-This repository is currently in the initialization stage. It includes only the minimum FastAPI backend and Streamlit frontend scaffold needed to verify that the project can run.
+This repository is currently in the initialization stage. It includes a minimum FastAPI backend, Streamlit frontend, and deterministic mock agent pipeline for early testing.
 
 ## Tech Stack
 
@@ -23,13 +23,28 @@ This repository is currently in the initialization stage. It includes only the m
 |   `-- main.py
 |-- frontend/
 |   `-- app.py
+|-- app/
+|   |-- schemas.py
+|   |-- data/
+|   |   `-- foods_clean.csv
+|   |-- services/
+|   |   |-- food_retriever.py
+|   |   |-- meal_composer.py
+|   |   |-- nutrition_calculator.py
+|   |   `-- validator.py
+|   `-- agents/
+|       `-- mock_agent.py
 |-- tests/
-|   `-- test_health.py
+|   |-- test_health.py
+|   |-- test_mock_agent.py
+|   |-- test_retriever.py
+|   `-- test_validator.py
 |-- .github/
 |   `-- workflows/
 |       `-- ci.yml
 |-- .gitignore
 |-- pyproject.toml
+|-- requirements.txt
 |-- uv.lock
 `-- README.md
 ```
@@ -47,6 +62,13 @@ source .venv/bin/activate
 
 ```bash
 pip install -e ".[dev]"
+```
+
+Alternatively:
+
+```bash
+pip install -r requirements.txt
+pip install -e .
 ```
 
 ## Run Locally
@@ -69,6 +91,18 @@ curl http://127.0.0.1:8000/health
 streamlit run frontend/app.py
 ```
 
+## Mock Agent
+
+The mock agent uses local CSV data and deterministic Python functions only. It does not call an LLM, RAG system, or database yet.
+
+```python
+from app.agents.mock_agent import run_mock_agent
+from app.schemas import MealRequest
+
+result = run_mock_agent(MealRequest(target_kcal=500))
+print(result.meal_plan)
+```
+
 ## Quality Checks
 
 ```bash
@@ -81,6 +115,7 @@ pytest
 - Repository initialization
 - Minimal FastAPI app startup check
 - Minimal Streamlit app startup check
+- Local CSV-backed mock agent scaffold
 - Basic CI workflow for lint and tests
 
-No meal recommendation, RAG, database, or LLM logic is implemented yet.
+No production meal recommendation, RAG, database, or LLM logic is implemented yet.
