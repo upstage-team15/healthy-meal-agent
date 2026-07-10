@@ -36,7 +36,7 @@ def load_foods() -> list[FoodItem]:
                 food_id=int(row["food_id"]),
                 food_name=str(row["food_name"]),
                 meal_role=str(row["meal_role"]),
-                serving_size=float(row["serving_g"]),
+                serving_size=float(row["serving_size"]),
                 kcal=float(row["kcal"]),
                 carbohydrate=float(row["carbohydrate"]),
                 protein=float(row["protein"]),

@@ -1,4 +1,4 @@
-﻿food_id,food_name,meal_role,serving_g,kcal,carbohydrate,protein,fat,sugar,sodium
+food_id,food_name,meal_role,serving_size,kcal,carbohydrate,protein,fat,sugar,sodium
 1,흰죽,한그릇,291.9,186.8,39.4,3.5,0.8,0.3,379.5
 2,흑임자죽,한그릇,400.0,244.0,14.6,4.4,18.9,3.0,636.0
 3,흑임자 죽,한그릇,259.0,274.5,42.4,5.7,8.7,0.4,336.7
