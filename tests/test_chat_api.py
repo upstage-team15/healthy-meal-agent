@@ -10,14 +10,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.services.condition_extractor import extract_conditions_stub
+from app.services.intent_router import classify_intent_stub
 from backend import main
 from backend.main import app
 
 
 @pytest.fixture
 def client(monkeypatch):
-    # 실제 Solar 호출 대신 정규식 stub 사용 (네트워크·API키 불필요)
+    # 실제 Solar 호출 대신 stub 사용 (네트워크·API키 불필요)
+    # 의도분류·조건추출 둘 다 규칙기반 stub으로 고정
     monkeypatch.setattr(main.chat, "extract_conditions_llm", extract_conditions_stub)
+    monkeypatch.setattr(main.chat, "classify_intent_llm", classify_intent_stub)
     return TestClient(app)
 
 
@@ -78,10 +81,15 @@ def test_chat_stream_handles_llm_failure(monkeypatch):
     def boom(_msg):
         raise RuntimeError("LLM timeout")
 
+    # 추천 경로(meal_recommend)로 확실히 들어가도록 분류기를 고정한 뒤,
+    # 그 다음 단계인 조건추출에서 예외를 유발한다.
+    monkeypatch.setattr(main.chat, "classify_intent_llm", lambda _msg: "meal_recommend")
     monkeypatch.setattr(main.chat, "extract_conditions_llm", boom)
     client = TestClient(app)
 
-    with client.stream("POST", "/api/v1/chat", json={"message": "아무거나 추천해줘"}) as resp:
+    with client.stream(
+        "POST", "/api/v1/chat", json={"message": "400kcal 이하 한 끼 추천해줘"}
+    ) as resp:
         assert resp.status_code == 200
         text = "".join(resp.iter_text())
 

@@ -3,6 +3,20 @@ from pydantic import BaseModel, Field
 
 
 # ─────────────────────────────────────────────
+# 0. 요청 의도 (사용자 입력을 가장 먼저 분류)
+# ─────────────────────────────────────────────
+# 판단은 LLM, 사실은 코드 — 어떤 요청인지 "판단"만 LLM이 하고,
+# 각 분기의 처리(추천/영양수치/거절)는 코드가 담당한다.
+IntentType = Literal[
+    "meal_recommend",  # 식단 추천 ("400kcal 가볍게 한 끼")
+    "nutrition_query",  # 영양 조회 ("김치찌개 나트륨 얼마야?")
+    "risky",  # 위험/부적절 요청 ("살 빼게 굶는 식단 짜줘")
+    "out_of_scope",  # 범위 밖 ("오늘 날씨 어때?")
+    "need_more_info",  # 조건 부족 ("뭐 먹지?") → 되묻기
+]
+
+
+# ─────────────────────────────────────────────
 # 1. 사용자 프로필 (최초 1회 입력, 안전 확인용)
 # ─────────────────────────────────────────────
 class UserProfile(BaseModel):
@@ -83,6 +97,7 @@ class ValidationResult(BaseModel):
 class AgentState(BaseModel):
     user_message: str  # 사용자 원문
     profile: UserProfile = Field(default_factory=UserProfile)  # 프로필
+    intent: Optional[IntentType] = None  # 요청 의도 (분류 결과)
     conditions: Optional[UserConditions] = None  # 추출된 조건
     candidates_by_role: dict[str, list[FoodItem]] = Field(default_factory=dict)  # 역할별 후보 dict
     candidates: list[FoodItem] = Field(default_factory=list)  # 검색된 후보들

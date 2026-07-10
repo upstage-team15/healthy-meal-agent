@@ -12,6 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from app.schemas import (
     AgentState,
     FoodItem,
+    IntentType,
     MealPlan,
     NutritionTotal,
     UserConditions,
@@ -20,16 +21,35 @@ from app.schemas import (
 )
 from app.services.condition_extractor import extract_conditions_stub
 from app.services.food_retriever import retrieve_foods
+from app.services.intent_router import classify_intent_stub
 from app.services.meal_composer import compose_meal
 from app.services.nutrition_calculator import calculate_nutrition
+from app.services.nutrition_lookup import answer_nutrition_query
 from app.services.validator import validate_meal
 
 MAX_RETRY = 2
+
+# 추천이 아닌 분기에서 돌려줄 정해진 응답 (환각 없이 코드가 안내)
+RISKY_RESPONSE = (
+    "건강을 해칠 수 있는 요청은 도와드리기 어려워요. "
+    "저는 균형 잡힌 한 끼를 추천하는 서비스예요. "
+    "칼로리나 영양 목표를 알려주시면 건강한 식단으로 도와드릴게요."
+)
+OUT_OF_SCOPE_RESPONSE = (
+    "저는 건강한 한 끼 식단을 추천하는 서비스예요. "
+    "드시고 싶은 느낌(예: 담백한, 얼큰한)이나 칼로리 목표를 말씀해 주시면 추천해드릴게요."
+)
+NEED_MORE_INFO_RESPONSE = (
+    "어떤 한 끼를 원하세요? "
+    "예를 들어 '400kcal 이하로 담백하게', '얼큰한 국물 요리'처럼 "
+    "칼로리·맛·제외할 재료를 알려주시면 딱 맞게 추천해드릴게요."
+)
 
 
 class GraphState(TypedDict, total=False):
     user_message: str
     profile: UserProfile
+    intent: IntentType | None
     conditions: UserConditions | None
     candidates_by_role: dict[str, list[FoodItem]]
     candidates: list[FoodItem]
@@ -48,11 +68,39 @@ def _has_candidates(candidates_by_role: dict[str, list[FoodItem]]) -> bool:
     return any(candidates_by_role.values())
 
 
-def create_graph(extractor: Callable[[str], UserConditions]):
-    """추천 StateGraph를 생성한다. extractor는 stub/Solar를 호출부에서 주입한다."""
+def create_graph(
+    extractor: Callable[[str], UserConditions],
+    classifier: Callable[[str], IntentType] = classify_intent_stub,
+):
+    """StateGraph를 생성한다. extractor/classifier는 stub/Solar를 호출부에서 주입한다."""
+
+    def route_node(state: GraphState) -> GraphState:
+        intent = classifier(state["user_message"])
+        # 어떤 분기로 갔는지 서버 로그로 확인 (디버깅·시연용)
+        print(f"[intent] '{state['user_message']}' → {intent}")
+        return {"intent": intent}
+
+    def nutrition_query_node(state: GraphState) -> GraphState:
+        # 수치는 코드가 DB에서 조회 (LLM이 숫자를 지어내지 않음)
+        return {"final_response": answer_nutrition_query(state["user_message"])}
+
+    def risky_node(state: GraphState) -> GraphState:
+        return {"final_response": RISKY_RESPONSE}
+
+    def out_of_scope_node(state: GraphState) -> GraphState:
+        return {"final_response": OUT_OF_SCOPE_RESPONSE}
+
+    def need_more_info_node(state: GraphState) -> GraphState:
+        return {"final_response": NEED_MORE_INFO_RESPONSE}
 
     def extract_node(state: GraphState) -> GraphState:
-        return {"conditions": extractor(state["user_message"])}
+        conditions = extractor(state["user_message"])
+        print(
+            f"[conditions] kcal={conditions.target_kcal}({conditions.kcal_mode}) "
+            f"선호={conditions.preferences} 제외={conditions.exclude_foods} "
+            f"형태={conditions.meal_style}"
+        )
+        return {"conditions": conditions}
 
     def retrieve_node(state: GraphState) -> GraphState:
         conditions = state["conditions"]
@@ -121,14 +169,44 @@ def create_graph(extractor: Callable[[str], UserConditions]):
             return "end"
         return "retrieve" if validation_result.cause == "retrieve" else "compose"
 
+    def route_by_intent(
+        state: GraphState,
+    ) -> Literal["extract", "nutrition_query", "risky", "out_of_scope", "need_more_info"]:
+        # meal_recommend만 추천 파이프라인(extract~)으로, 나머지는 각 응답 노드로 종료
+        intent = state.get("intent")
+        if intent == "meal_recommend":
+            return "extract"
+        return intent or "extract"
+
     builder = StateGraph(GraphState)
+    builder.add_node("route", route_node)
+    builder.add_node("nutrition_query", nutrition_query_node)
+    builder.add_node("risky", risky_node)
+    builder.add_node("out_of_scope", out_of_scope_node)
+    builder.add_node("need_more_info", need_more_info_node)
     builder.add_node("extract", extract_node)
     builder.add_node("retrieve", retrieve_node)
     builder.add_node("compose", compose_node)
     builder.add_node("calculate", calculate_node)
     builder.add_node("validate", validate_node)
 
-    builder.add_edge(START, "extract")
+    builder.add_edge(START, "route")
+    builder.add_conditional_edges(
+        "route",
+        route_by_intent,
+        {
+            "extract": "extract",
+            "nutrition_query": "nutrition_query",
+            "risky": "risky",
+            "out_of_scope": "out_of_scope",
+            "need_more_info": "need_more_info",
+        },
+    )
+    # 추천이 아닌 분기는 응답만 세팅하고 즉시 종료
+    builder.add_edge("nutrition_query", END)
+    builder.add_edge("risky", END)
+    builder.add_edge("out_of_scope", END)
+    builder.add_edge("need_more_info", END)
     builder.add_edge("extract", "retrieve")
     builder.add_conditional_edges(
         "retrieve",
@@ -149,9 +227,10 @@ def run_agent(
     user_message: str,
     profile: UserProfile = None,
     extractor: Callable[[str], UserConditions] = extract_conditions_stub,
+    classifier: Callable[[str], IntentType] = classify_intent_stub,
 ) -> AgentState:
-    """추천 파이프라인 공개 진입점. 반환 형태는 기존 AgentState와 동일하다."""
+    """공개 진입점. 요청 분류(intent) → 분기 → (추천이면) 파이프라인. 반환형은 기존과 동일."""
     initial_state = AgentState(user_message=user_message, profile=profile or UserProfile())
-    graph = create_graph(extractor)
+    graph = create_graph(extractor, classifier)
     result = graph.invoke(initial_state.__dict__.copy())
     return AgentState.model_validate(result)
