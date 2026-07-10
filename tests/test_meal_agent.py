@@ -1,5 +1,5 @@
 from app.schemas import UserProfile
-from app.agents.mock_agent import run_agent
+from app.agents.meal_agent import run_agent
 
 
 def test_end_to_end_scenario():

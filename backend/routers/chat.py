@@ -14,7 +14,7 @@ import json
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from app.agents.mock_agent import run_agent
+from app.agents.meal_agent import run_agent
 from app.schemas import AgentState, UserProfile
 from app.services.condition_extractor import extract_conditions_llm
 from backend.schemas import ChatRequest, ChatResponse
