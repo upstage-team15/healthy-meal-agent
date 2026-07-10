@@ -84,6 +84,7 @@ class AgentState(BaseModel):
     user_message: str  # 사용자 원문
     profile: UserProfile = Field(default_factory=UserProfile)  # 프로필
     conditions: Optional[UserConditions] = None  # 추출된 조건
+    candidates_by_role: dict[str, list[FoodItem]] = Field(default_factory=dict)  # 역할별 후보 dict
     candidates: list[FoodItem] = Field(default_factory=list)  # 검색된 후보들
     meal_plan: Optional[MealPlan] = None  # 구성된 식단
     nutrition_total: Optional[NutritionTotal] = None  # 합산 결과

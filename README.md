@@ -33,10 +33,11 @@ This repository is currently in the initialization stage. It includes a minimum 
 |   |   |-- nutrition_calculator.py
 |   |   `-- validator.py
 |   `-- agents/
-|       `-- mock_agent.py
+|       |-- graph.py
+|       `-- meal_agent.py
 |-- tests/
 |   |-- test_health.py
-|   |-- test_mock_agent.py
+|   |-- test_meal_agent.py
 |   |-- test_retriever.py
 |   `-- test_validator.py
 |-- .github/
@@ -91,16 +92,16 @@ curl http://127.0.0.1:8000/health
 streamlit run frontend/app.py
 ```
 
-## Mock Agent
+## Meal Agent
 
-The mock agent uses local CSV data and deterministic Python functions only. It does not call an LLM, RAG system, or database yet.
+The meal agent keeps nutrition facts in code and data, while LangGraph manages the recommendation flow and retry routing.
 
 ```python
-from app.agents.mock_agent import run_mock_agent
-from app.schemas import MealRequest
+from app.agents.meal_agent import run_agent
+from app.schemas import UserProfile
 
-result = run_mock_agent(MealRequest(target_kcal=500))
-print(result.meal_plan)
+state = run_agent("400kcal 이하로 야채 많은 한 끼 추천해줘", UserProfile())
+print(state.final_response)
 ```
 
 ## Quality Checks
