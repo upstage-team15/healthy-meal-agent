@@ -81,9 +81,7 @@ def test_chat_stream_handles_llm_failure(monkeypatch):
     monkeypatch.setattr(main.chat, "extract_conditions_llm", boom)
     client = TestClient(app)
 
-    with client.stream(
-        "POST", "/api/v1/chat", json={"message": "아무거나 추천해줘"}
-    ) as resp:
+    with client.stream("POST", "/api/v1/chat", json={"message": "아무거나 추천해줘"}) as resp:
         assert resp.status_code == 200
         text = "".join(resp.iter_text())
 
