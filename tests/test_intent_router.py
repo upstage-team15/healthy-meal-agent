@@ -1,0 +1,100 @@
+"""
+tests/test_intent_router.py
+요청 분류(intent_router)와 non-recommend 분기 처리 테스트.
+외부 LLM 없이 stub 분류기로 결정적으로 검증한다.
+"""
+
+from app.agents.graph import (
+    NEED_MORE_INFO_RESPONSE,
+    OUT_OF_SCOPE_RESPONSE,
+    RISKY_RESPONSE,
+    run_agent,
+)
+from app.schemas import UserProfile
+from app.services import food_retriever
+from app.services.intent_router import classify_intent_stub
+from app.services.nutrition_lookup import answer_nutrition_query
+
+
+# ── 1. stub 분류기: 각 카테고리를 올바르게 나누는가 ────────────────
+def test_stub_classifies_nutrition_query():
+    assert classify_intent_stub("김치찌개 나트륨 얼마야?") == "nutrition_query"
+
+
+def test_stub_classifies_risky():
+    assert classify_intent_stub("살 빼게 하루 종일 굶는 식단 짜줘") == "risky"
+
+
+def test_stub_classifies_need_more_info():
+    assert classify_intent_stub("추천해줘") == "need_more_info"
+    assert classify_intent_stub("뭐먹지?") == "need_more_info"
+
+
+def test_stub_classifies_meal_recommend():
+    # 조건(kcal·맛)이 있으면 추천으로
+    assert classify_intent_stub("400kcal 이하로 담백한 한 끼") == "meal_recommend"
+    assert classify_intent_stub("얼큰한 국물 요리 추천") == "meal_recommend"
+
+
+# ── 2. nutrition_lookup: 수치는 DB 실제값 ────────────────────────
+def test_nutrition_lookup_uses_db_values():
+    foods = food_retriever.load_foods()
+    target = foods[0]
+    answer = answer_nutrition_query(target.food_name, foods=foods)
+    assert target.food_name in answer
+    assert f"{target.kcal:.0f}kcal" in answer  # 지어낸 값이 아니라 DB값 그대로
+
+
+def test_nutrition_lookup_unknown_food():
+    answer = answer_nutrition_query("존재하지않는음식1234", foods=[])
+    assert "어떤 음식" in answer  # 모르면 되묻는다 (환각 금지)
+
+
+# ── 3. 그래프 분기: intent별로 올바른 응답/경로 ──────────────────
+def _recommend_classifier(msg):
+    return "meal_recommend"
+
+
+def _fixed_classifier(intent):
+    def _c(msg):
+        return intent
+
+    return _c
+
+
+def test_graph_risky_returns_refusal():
+    state = run_agent(
+        "굶는 다이어트 짜줘", profile=UserProfile(), classifier=_fixed_classifier("risky")
+    )
+    assert state.intent == "risky"
+    assert state.final_response == RISKY_RESPONSE
+    assert state.meal_plan is None  # 추천 파이프라인을 타지 않음
+
+
+def test_graph_out_of_scope_returns_guide():
+    state = run_agent(
+        "오늘 날씨 어때?", profile=UserProfile(), classifier=_fixed_classifier("out_of_scope")
+    )
+    assert state.intent == "out_of_scope"
+    assert state.final_response == OUT_OF_SCOPE_RESPONSE
+
+
+def test_graph_need_more_info_asks_back():
+    state = run_agent(
+        "추천해줘", profile=UserProfile(), classifier=_fixed_classifier("need_more_info")
+    )
+    assert state.intent == "need_more_info"
+    assert state.final_response == NEED_MORE_INFO_RESPONSE
+
+
+def test_graph_nutrition_query_returns_numbers(monkeypatch):
+    foods = food_retriever.load_foods()
+    target = foods[0]
+    state = run_agent(
+        f"{target.food_name} 칼로리 알려줘",
+        profile=UserProfile(),
+        classifier=_fixed_classifier("nutrition_query"),
+    )
+    assert state.intent == "nutrition_query"
+    assert f"{target.kcal:.0f}kcal" in state.final_response
+    assert state.meal_plan is None

@@ -10,7 +10,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from app.schemas import FoodItem, NutritionTotal, UserProfile
+from app.schemas import FoodItem, IntentType, NutritionTotal, UserProfile
 
 
 # ─────────────────────────────────────────────
@@ -26,6 +26,7 @@ class ChatRequest(BaseModel):
 # 프론트가 카드로 그릴 수 있도록 run_agent(AgentState)를 평평하게 정리한다.
 # ─────────────────────────────────────────────
 class ChatResponse(BaseModel):
+    intent: Optional[IntentType] = None  # 요청 분류 결과 (프론트 분기·투명성용)
     meal_type: Optional[str] = None  # "한그릇" / "백반" (추천 실패 시 None)
     items: list[FoodItem] = Field(default_factory=list)  # 추천 음식들
     nutrition: Optional[NutritionTotal] = None  # 총 영양성분

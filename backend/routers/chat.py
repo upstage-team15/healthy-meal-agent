@@ -17,6 +17,7 @@ from fastapi.responses import StreamingResponse
 from app.agents.meal_agent import run_agent
 from app.schemas import AgentState, UserProfile
 from app.services.condition_extractor import extract_conditions_llm
+from app.services.intent_router import classify_intent_llm
 from backend.schemas import ChatRequest, ChatResponse
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
@@ -27,6 +28,7 @@ def _to_response(state: AgentState) -> ChatResponse:
     mp = state.meal_plan
     vr = state.validation_result
     return ChatResponse(
+        intent=state.intent,
         meal_type=mp.meal_type if mp else None,
         items=mp.items if mp else [],
         nutrition=state.nutrition_total,
@@ -39,9 +41,14 @@ def _to_response(state: AgentState) -> ChatResponse:
 
 
 def _run(req: ChatRequest) -> AgentState:
-    """공용 실행부. LLM 조건추출(실패 시 내부에서 stub 폴백)을 주입해 돌린다."""
+    """공용 실행부. LLM 의도분류·조건추출(각각 실패 시 stub 폴백)을 주입해 돌린다."""
     profile = req.profile or UserProfile()
-    return run_agent(req.message, profile=profile, extractor=extract_conditions_llm)
+    return run_agent(
+        req.message,
+        profile=profile,
+        extractor=extract_conditions_llm,
+        classifier=classify_intent_llm,
+    )
 
 
 @router.post("/chat/sync", response_model=ChatResponse)
