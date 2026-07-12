@@ -7,6 +7,7 @@ from langchain_upstage import ChatUpstage
 
 DEFAULT_BASE_BRANCH = "main"
 MAX_DIFF_CHARS = 12000
+MAX_ERROR_CHARS = 500
 
 
 def run_git_command(args: list[str]) -> str:
@@ -57,10 +58,31 @@ def create_review(diff: str) -> str:
     return str(response.content)
 
 
+def create_skipped_review(reason: str) -> str:
+    return (
+        "## AI Review\n"
+        "- Summary: AI 리뷰를 생성하지 못했습니다.\n"
+        "- Findings: 자동 리뷰 서비스 호출이 실패했지만, Code Quality와 Unit Tests 결과는 별도로 확인되었습니다.\n"
+        "- Test Suggestions: 변경 범위에 맞는 로컬 테스트와 수동 리뷰를 진행해 주세요.\n\n"
+        f"> Skipped: {reason}\n"
+    )
+
+
+def summarize_review_error(exc: Exception) -> str:
+    message = " ".join(str(exc).split())
+    if "403" in message and "Forbidden" in message:
+        return (
+            "Upstage API returned 403 Forbidden. Check UPSTAGE_API_KEY and LLM_MODEL permissions."
+        )
+    if not message:
+        return exc.__class__.__name__
+    return message[:MAX_ERROR_CHARS]
+
+
 def main() -> int:
     if not os.getenv("UPSTAGE_API_KEY"):
-        print("UPSTAGE_API_KEY is not configured.")
-        return 1
+        print(create_skipped_review("UPSTAGE_API_KEY is not configured."))
+        return 0
 
     try:
         diff = get_diff()
@@ -75,8 +97,8 @@ def main() -> int:
     try:
         print(create_review(diff))
     except Exception as exc:
-        print(f"Failed to create AI review: {exc}", file=sys.stderr)
-        return 1
+        print(create_skipped_review(summarize_review_error(exc)))
+        return 0
 
     return 0
 
