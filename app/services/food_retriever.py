@@ -18,16 +18,49 @@ import pandas as pd
 
 from app.schemas import FoodItem
 
-CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "foods_clean.csv"
+CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "foods_samsam.csv"
 
+# 한 끼 구성에 쓰는 역할만 검색 (간식·기타는 후보에서 제외)
 ROLES = ["밥", "국물", "반찬", "한그릇"]
 PER_ROLE = 20  # 역할별로 가져올 후보 수
 
 _FOODS_CACHE: list[FoodItem] | None = None
 
 
+def _opt_float(value) -> float | None:
+    """빈값·NaN·결측 → None, 그 외 → float. serving_size/sugar 결측 방어."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if s == "" or s.lower() == "nan":
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _parse_json_list(value) -> list[str]:
+    """recipe_steps/images: JSON 배열 문자열 → list[str]. 실패 시 빈 리스트."""
+    import json
+
+    s = str(value).strip() if value is not None else ""
+    if not s or s.lower() == "nan":
+        return []
+    try:
+        parsed = json.loads(s)
+        return [str(x) for x in parsed] if isinstance(parsed, list) else []
+    except (ValueError, TypeError):
+        return []
+
+
+def _str_or_empty(value) -> str:
+    s = str(value).strip() if value is not None else ""
+    return "" if s.lower() == "nan" else s
+
+
 def load_foods() -> list[FoodItem]:
-    """CSV → FoodItem 리스트 (한 번 읽고 캐시). Supabase fallback·테스트용."""
+    """CSV(foods_samsam) → FoodItem 리스트 (한 번 읽고 캐시). Supabase fallback·테스트용."""
     global _FOODS_CACHE
     if _FOODS_CACHE is not None:
         return _FOODS_CACHE
@@ -35,19 +68,27 @@ def load_foods() -> list[FoodItem]:
     df = pd.read_csv(CSV_PATH)
     if "food_id" not in df.columns:
         df["food_id"] = df.index + 1
+    # 삼삼한밥상 전용 컬럼이 없는 CSV(구 데이터)도 로드되도록 기본값 보강
+    for col in ("recipe_steps", "recipe_images", "ingredients", "na_tip"):
+        if col not in df.columns:
+            df[col] = ""
 
     foods = [
         FoodItem(
             food_id=int(row["food_id"]),
             food_name=str(row["food_name"]),
             meal_role=str(row["meal_role"]),
-            serving_size=float(row["serving_size"]),
+            serving_size=_opt_float(row["serving_size"]),
             kcal=float(row["kcal"]),
             carbohydrate=float(row["carbohydrate"]),
             protein=float(row["protein"]),
             fat=float(row["fat"]),
-            sugar=float(row["sugar"]),
+            sugar=_opt_float(row["sugar"]),
             sodium=float(row["sodium"]),
+            recipe_steps=_parse_json_list(row["recipe_steps"]),
+            recipe_images=_parse_json_list(row["recipe_images"]),
+            ingredients=_str_or_empty(row["ingredients"]),
+            na_tip=_str_or_empty(row["na_tip"]),
         )
         for _, row in df.iterrows()
     ]
@@ -73,13 +114,17 @@ def _row_to_food(r: dict) -> FoodItem:
         food_id=int(r["food_id"]),
         food_name=str(r["food_name"]),
         meal_role=str(r["meal_role"]),
-        serving_size=float(r["serving_size"]),
+        serving_size=_opt_float(r.get("serving_size")),
         kcal=float(r["kcal"]),
         carbohydrate=float(r["carbohydrate"]),
         protein=float(r["protein"]),
         fat=float(r["fat"]),
-        sugar=float(r["sugar"]),
+        sugar=_opt_float(r.get("sugar")),
         sodium=float(r["sodium"]),
+        recipe_steps=_parse_json_list(r.get("recipe_steps")),
+        recipe_images=_parse_json_list(r.get("recipe_images")),
+        ingredients=_str_or_empty(r.get("ingredients")),
+        na_tip=_str_or_empty(r.get("na_tip")),
     )
 
 
