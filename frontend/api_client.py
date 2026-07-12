@@ -59,7 +59,6 @@ def run_recommendation(user_text: str) -> tuple[str, dict | None]:
         )
     except Exception as exc:
         return (
-            "API 요청을 처리하는 중 오류가 발생했어요.\n\n"
-            f"```text\n{exc}\n```",
+            f"API 요청을 처리하는 중 오류가 발생했어요.\n\n```text\n{exc}\n```",
             None,
         )

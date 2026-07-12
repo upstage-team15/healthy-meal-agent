@@ -132,7 +132,9 @@ def render_meal_card(agent_payload: dict | None) -> None:
     items = meal_plan.get("items", [])
     warnings = validation.get("warnings", [])
     status = validation.get("status", "PASS")
-    status_class = "warning" if status == "PASS_WITH_WARNING" else "fail" if status == "FAIL" else ""
+    status_class = (
+        "warning" if status == "PASS_WITH_WARNING" else "fail" if status == "FAIL" else ""
+    )
     status_label = {
         "PASS": "적합",
         "PASS_WITH_WARNING": "주의",
