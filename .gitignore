@@ -17,6 +17,7 @@ __pycache__/
 htmlcov/
 
 .streamlit/secrets.toml
+.agents/
 
 dist/
 build/
