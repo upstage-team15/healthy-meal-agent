@@ -45,12 +45,13 @@ def render_sidebar() -> None:
         st.html('<div class="field-label">성별</div>')
         gender_label = st.radio(
             "성별",
-            ["여성", "남성"],
+            ["남성", "여성"],
             horizontal=True,
             label_visibility="collapsed",
-            index=0 if st.session_state.gender == "female" else 1,
+            index=0 if st.session_state.gender == "male" else 1,
+            key="gender_radio",
         )
-        st.session_state.gender = "female" if gender_label == "여성" else "male"
+        st.session_state.gender = "male" if gender_label == "남성" else "female"
 
         st.html('<div class="field-label">연령대</div>')
         age_group = st.selectbox(

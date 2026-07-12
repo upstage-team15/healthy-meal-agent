@@ -6,7 +6,7 @@ React app so the Streamlit version keeps the same look and feel.
 
 CUSTOM_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Gothic+A1:wght@300;400;500;700;800;900&family=Nanum+Gothic+Coding:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
 
 :root {
   --background: #F5F7F4;
@@ -29,7 +29,7 @@ CUSTOM_CSS = """
 }
 
 html, body, [class*="css"] {
-  font-family: 'Gothic A1', system-ui, sans-serif;
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
 }
 
 .stApp {
@@ -41,7 +41,7 @@ html, body, [class*="css"] {
   border-right: 1px solid var(--border);
 }
 
-.mono { font-family: 'Nanum Gothic Coding', monospace; }
+.mono { font-family: 'Noto Sans KR', monospace; }
 
 /* ---------- Sidebar ---------- */
 .brand-row { display: flex; align-items: center; gap: 10px; padding: 4px 0 12px; }
@@ -50,11 +50,11 @@ html, body, [class*="css"] {
   display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
 }
 .brand-title { font-weight: 700; font-size: 15px; color: var(--foreground); letter-spacing: -0.3px; }
-.brand-sub { font-size: 11px; color: var(--muted-foreground); font-family: 'Nanum Gothic Coding', monospace; }
+.brand-sub { font-size: 11px; color: var(--muted-foreground); font-family: 'Noto Sans KR', monospace; }
 
 .section-label {
   font-size: 10px; font-weight: 700; color: var(--muted-foreground);
-  letter-spacing: 0.08em; text-transform: uppercase; font-family: 'Nanum Gothic Coding', monospace;
+  letter-spacing: 0.08em; text-transform: uppercase; font-family: 'Noto Sans KR', monospace;
   margin: 4px 0 10px;
 }
 
@@ -64,7 +64,7 @@ html, body, [class*="css"] {
   background: var(--sage-pale); border-radius: 10px; padding: 12px 14px;
   border: 1px solid #C8D8C8; margin: 6px 0 4px;
 }
-.kdri-label { font-size: 11px; color: var(--sage); font-family: 'Nanum Gothic Coding', monospace; font-weight: 500; margin-bottom: 4px; }
+.kdri-label { font-size: 11px; color: var(--sage); font-family: 'Noto Sans KR', monospace; font-weight: 500; margin-bottom: 4px; }
 .kdri-value { font-size: 22px; font-weight: 700; color: var(--sage); letter-spacing: -0.5px; }
 .kdri-value span { font-size: 13px; font-weight: 500; }
 .kdri-sub { font-size: 11px; color: var(--muted-foreground); margin-top: 2px; }
@@ -75,7 +75,7 @@ html, body, [class*="css"] {
 }
 
 .stat-card { background: var(--muted); border-radius: 10px; padding: 12px 12px 10px; margin-bottom: 10px; }
-.stat-label { font-size: 10px; color: var(--muted-foreground); font-family: 'Nanum Gothic Coding', monospace; margin-bottom: 4px; }
+.stat-label { font-size: 10px; color: var(--muted-foreground); font-family: 'Noto Sans KR', monospace; margin-bottom: 4px; }
 .stat-value { font-size: 18px; font-weight: 700; color: var(--foreground); letter-spacing: -0.4px; }
 .stat-value span { font-size: 11px; font-weight: 400; color: var(--muted-foreground); margin-left: 2px; }
 .stat-bar-track { height: 3px; background: var(--border); border-radius: 99px; margin-top: 8px; overflow: hidden; }
@@ -96,10 +96,34 @@ html, body, [class*="css"] {
   display: inline-block; width: 8px; height: 8px; border-radius: 99px;
   background: #2D7A4F; box-shadow: 0 0 0 3px #C0E0CC;
 }
-.topbar-title { font-size: 14px; font-weight: 600; color: var(--foreground); }
+.topbar-title { font-size: 22px; font-weight: 700; color: var(--foreground); letter-spacing: -0.3px; }
 .badge {
   padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600;
-  font-family: 'Nanum Gothic Coding', monospace;
+  font-family: 'Noto Sans KR', monospace;
+}
+
+/* ---------- Tab switcher (chat / history) ---------- */
+.st-key-tab_switcher { display: flex; justify-content: flex-end; padding: 4px 0; }
+.st-key-tab_switcher [data-testid="stRadioGroup"] {
+  display: inline-flex; gap: 2px; background: var(--muted);
+  border-radius: 10px; padding: 3px;
+}
+.st-key-tab_switcher [data-testid="stRadioOption"] {
+  cursor: pointer; border-radius: 8px; padding: 7px 16px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.st-key-tab_switcher [data-testid="stRadioOption"] div:has(+ [data-testid="stMarkdownContainer"]) {
+  display: none;
+}
+.st-key-tab_switcher [data-testid="stRadioOption"] [data-testid="stMarkdownContainer"] p {
+  font-size: 13px; font-weight: 600; color: var(--muted-foreground);
+  margin: 0; white-space: nowrap;
+}
+.st-key-tab_switcher [data-testid="stRadioOption"][data-selected="true"] {
+  background: var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.st-key-tab_switcher [data-testid="stRadioOption"][data-selected="true"] [data-testid="stMarkdownContainer"] p {
+  color: var(--sage);
 }
 .badge-sage { background: var(--sage-pale); color: var(--sage); }
 .badge-amber { background: var(--amber-pale); color: var(--amber); }
@@ -107,7 +131,7 @@ html, body, [class*="css"] {
 /* ---------- Chat ---------- */
 .agent-label {
   font-size: 11px; font-weight: 600; color: var(--sage);
-  font-family: 'Nanum Gothic Coding', monospace; margin-bottom: 6px;
+  font-family: 'Noto Sans KR', monospace; margin-bottom: 6px;
 }
 
 /* ---------- Cards (meal / danger / clarify / sodium) ---------- */
@@ -118,7 +142,7 @@ html, body, [class*="css"] {
   display: flex; align-items: center; gap: 10px;
 }
 .na-card-title { font-size: 15px; font-weight: 700; color: var(--foreground); letter-spacing: -0.3px; }
-.na-card-subtitle { font-size: 11px; color: var(--muted-foreground); font-family: 'Nanum Gothic Coding', monospace; }
+.na-card-subtitle { font-size: 11px; color: var(--muted-foreground); font-family: 'Noto Sans KR', monospace; }
 .na-card-body { padding: 16px 20px 20px; }
 
 .meal-item-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
@@ -127,33 +151,33 @@ html, body, [class*="css"] {
   border-radius: 10px; padding: 8px 12px;
 }
 .meal-item-role {
-  font-size: 10px; font-weight: 700; color: var(--sage); font-family: 'Nanum Gothic Coding', monospace;
+  font-size: 10px; font-weight: 700; color: var(--sage); font-family: 'Noto Sans KR', monospace;
   background: var(--sage-pale); border-radius: 6px; padding: 2px 8px; flex-shrink: 0;
 }
 .meal-item-name { font-size: 13px; font-weight: 600; color: var(--foreground); flex: 1; }
-.meal-item-kcal { font-size: 12px; color: var(--muted-foreground); font-family: 'Nanum Gothic Coding', monospace; flex-shrink: 0; }
+.meal-item-kcal { font-size: 12px; color: var(--muted-foreground); font-family: 'Noto Sans KR', monospace; flex-shrink: 0; }
 
 .pass-badge {
   padding: 4px 12px; border-radius: 99px; background: var(--pass-pale); color: var(--pass);
-  font-size: 12px; font-weight: 700; font-family: 'Nanum Gothic Coding', monospace; border: 1px solid #B8DCC8;
+  font-size: 12px; font-weight: 700; font-family: 'Noto Sans KR', monospace; border: 1px solid #B8DCC8;
   margin-left: auto;
 }
 
 .nutri-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
 .nutri-cell { background: var(--muted); border-radius: 12px; padding: 12px; }
-.nutri-cell-label { font-size: 10px; color: var(--muted-foreground); font-family: 'Nanum Gothic Coding', monospace; font-weight: 500; margin-bottom: 6px; }
+.nutri-cell-label { font-size: 10px; color: var(--muted-foreground); font-family: 'Noto Sans KR', monospace; font-weight: 500; margin-bottom: 6px; }
 .nutri-cell-value { font-size: 20px; font-weight: 700; color: var(--foreground); letter-spacing: -0.5px; line-height: 1; }
 .nutri-cell-value span { font-size: 11px; font-weight: 400; color: var(--muted-foreground); }
 .nutri-cell-sub { font-size: 10px; color: var(--muted-foreground); margin: 3px 0 8px; }
 .nutri-bar-track { height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
 .nutri-bar-fill { height: 100%; border-radius: 99px; }
-.nutri-cell-status { font-size: 10px; font-weight: 600; font-family: 'Nanum Gothic Coding', monospace; margin-top: 5px; }
+.nutri-cell-status { font-size: 10px; font-weight: 600; font-family: 'Noto Sans KR', monospace; margin-top: 5px; }
 
 .macro-box { background: var(--muted); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
-.macro-box-title { font-size: 10px; color: var(--muted-foreground); font-family: 'Nanum Gothic Coding', monospace; font-weight: 500; }
+.macro-box-title { font-size: 10px; color: var(--muted-foreground); font-family: 'Noto Sans KR', monospace; font-weight: 500; }
 .macro-row-top { display: flex; justify-content: space-between; margin-bottom: 3px; }
 .macro-name { font-size: 11px; font-weight: 600; color: var(--foreground); }
-.macro-pct { font-size: 10px; color: var(--muted-foreground); font-family: 'Nanum Gothic Coding', monospace; }
+.macro-pct { font-size: 10px; color: var(--muted-foreground); font-family: 'Noto Sans KR', monospace; }
 .macro-bar-track { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; }
 .macro-bar-fill { height: 100%; border-radius: 99px; }
 .macro-box-foot { font-size: 9px; color: var(--muted-foreground); margin-top: 2px; }
@@ -190,7 +214,7 @@ html, body, [class*="css"] {
 .alert-body-sodium { font-size: 12px; color: #7A5520; line-height: 1.5; margin-top: 3px; }
 .sodium-chip {
   padding: 2px 8px; border-radius: 99px; background: #FDE8C0; color: var(--warning);
-  font-size: 10px; font-weight: 700; font-family: 'Nanum Gothic Coding', monospace;
+  font-size: 10px; font-weight: 700; font-family: 'Noto Sans KR', monospace;
 }
 
 .suggestion-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 16px; }
@@ -212,5 +236,6 @@ html, body, [class*="css"] {
 .suggestion-lead { font-size: 11px; color: var(--muted-foreground); margin: 12px 16px 0; }
 
 footer, #MainMenu { visibility: hidden; }
+[data-testid="stAppDeployButton"] { display: none; }
 </style>
 """

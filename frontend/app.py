@@ -36,7 +36,7 @@ QUICK_REPLIES = [
 
 
 def init_state() -> None:
-    defaults = {"gender": "female", "age_group": "19-29", "allergens": [], "target_kcal": 0}
+    defaults = {"gender": "male", "age_group": "19-29", "allergens": [], "target_kcal": 0}
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
     init_conversations()
@@ -58,13 +58,14 @@ with top_left:
         """
     )
 with top_right:
-    active_tab = st.radio(
-        "보기",
-        ["💬 채팅", "📋 히스토리"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="active_tab",
-    )
+    with st.container(key="tab_switcher"):
+        active_tab = st.radio(
+            "보기",
+            ["💬 채팅", "📋 히스토리"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="active_tab",
+        )
 
 st.divider()
 
@@ -195,18 +196,18 @@ else:
     for message in active_conversation["messages"]:
         render_message(message)
 
-# ---------- Quick replies ----------
-qr_cols = st.columns(len(QUICK_REPLIES))
-for col, quick_reply in zip(qr_cols, QUICK_REPLIES):
-    with col:
-        if st.button(quick_reply, key=f"quick_{quick_reply}", use_container_width=True):
-            process_message(quick_reply)
+    # ---------- Quick replies ----------
+    qr_cols = st.columns(len(QUICK_REPLIES))
+    for col, quick_reply in zip(qr_cols, QUICK_REPLIES):
+        with col:
+            if st.button(quick_reply, key=f"quick_{quick_reply}", use_container_width=True):
+                process_message(quick_reply)
 
-# ---------- Chat input ----------
-prompt = st.chat_input(
-    "원하시는 식사를 말씀해 주세요... (예: 400kcal 안으로 야채 많은 점심 추천해줘)"
-)
-if prompt:
-    process_message(prompt)
+    # ---------- Chat input ----------
+    prompt = st.chat_input(
+        "원하시는 식사를 말씀해 주세요... (예: 400kcal 안으로 야채 많은 점심 추천해줘)"
+    )
+    if prompt:
+        process_message(prompt)
 
 st.caption("NutriAgent는 의료 진단을 대신하지 않습니다 · 2025 KDRI 기준 적용 중")
