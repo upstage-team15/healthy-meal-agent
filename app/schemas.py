@@ -47,16 +47,21 @@ class UserConditions(BaseModel):
 # 3. 음식 하나 (foods_clean.csv의 한 줄)
 # ─────────────────────────────────────────────
 class FoodItem(BaseModel):
-    food_id: int  # 음식 ID
+    food_id: int  # 음식 ID (삼삼한밥상 RCP_SEQ / 흰밥 90001~, 모두 정수)
     food_name: str  # 음식명
-    meal_role: Literal["밥", "국물", "반찬", "한그릇", "기타"]  # 식사 내 역할
-    serving_size: float  # 1인분 기준량(g)
+    meal_role: Literal["밥", "국물", "반찬", "한그릇", "간식", "기타"]  # 식사 내 역할
+    serving_size: Optional[float] = None  # 1인분 기준량(g) — 삼삼한밥상은 76% 결측
     kcal: float  # 1인분 칼로리
     carbohydrate: float  # 탄수화물(g)
     protein: float  # 단백질(g)
     fat: float  # 지방(g)
-    sugar: float  # 당류(g)
+    sugar: Optional[float] = None  # 당류(g) — 삼삼한밥상엔 당류 데이터 없음
     sodium: float  # 나트륨(mg)
+    # 삼삼한 밥상 전용 (레시피 데이터). 구 데이터·흰밥은 빈 기본값.
+    recipe_steps: list[str] = Field(default_factory=list)  # 조리 단계
+    recipe_images: list[str] = Field(default_factory=list)  # 단계별 사진 URL
+    ingredients: str = ""  # 재료 원문
+    na_tip: str = ""  # 나트륨 저감팁
 
 
 # ─────────────────────────────────────────────

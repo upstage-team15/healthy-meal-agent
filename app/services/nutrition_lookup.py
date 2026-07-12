@@ -33,10 +33,14 @@ def answer_nutrition_query(user_message: str, foods: list[FoodItem] | None = Non
             "저희 DB에 있는 음식명을 정확히 말씀해 주시면 실제 성분값으로 답해드려요."
         )
 
+    # serving_size·sugar는 삼삼한밥상에서 결측일 수 있어 None 가드
+    serving = f"1인분({food.serving_size:.0f}g)" if food.serving_size is not None else "1인분"
+    macro = f"  · 탄수화물 {food.carbohydrate:.0f}g / 단백질 {food.protein:.0f}g / 지방 {food.fat:.0f}g\n"
+    sugar_part = f"당류 {food.sugar:.0f}g / " if food.sugar is not None else ""
     return (
-        f"[{food.food_name}] 1인분({food.serving_size:.0f}g) 기준\n"
+        f"[{food.food_name}] {serving} 기준\n"
         f"  · 칼로리 {food.kcal:.0f}kcal\n"
-        f"  · 탄수화물 {food.carbohydrate:.0f}g / 단백질 {food.protein:.0f}g / 지방 {food.fat:.0f}g\n"
-        f"  · 당류 {food.sugar:.0f}g / 나트륨 {food.sodium:.0f}mg\n"
+        f"{macro}"
+        f"  · {sugar_part}나트륨 {food.sodium:.0f}mg\n"
         f"(식약처 통합식품영양성분 DB 기준)"
     )
