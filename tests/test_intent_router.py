@@ -25,6 +25,21 @@ def test_stub_classifies_risky():
     assert classify_intent_stub("살 빼게 하루 종일 굶는 식단 짜줘") == "risky"
 
 
+# ── 극단 저칼로리 안전망 (결정론적 코드 가드레일) ────────────────
+def test_extreme_low_calorie_flagged_as_risky():
+    # 하루 단위로 열량이 지나치게 낮은 요청은 숫자만으로도 risky (기획서 시나리오 #5)
+    assert classify_intent_stub("하루 500kcal 식단 짜줘") == "risky"
+    assert classify_intent_stub("일일 1000kcal 이하로 극단적으로") == "risky"
+    assert classify_intent_stub("200kcal로 하루 버티기") == "risky"
+
+
+def test_normal_per_meal_low_calorie_not_risky():
+    # 끼 단위 저칼로리(정상 요청)는 risky로 오탐하면 안 된다 — 시연 핵심 경로
+    assert classify_intent_stub("400kcal 이하로 담백한 점심 추천") == "meal_recommend"
+    assert classify_intent_stub("300kcal 이하로 칼칼한 거 추천해줘") == "meal_recommend"
+    assert classify_intent_stub("500kcal 저녁 추천") == "meal_recommend"
+
+
 def test_stub_classifies_need_more_info():
     assert classify_intent_stub("추천해줘") == "need_more_info"
     assert classify_intent_stub("뭐먹지?") == "need_more_info"

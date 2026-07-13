@@ -24,6 +24,17 @@ CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "foods_samsam.csv"
 ROLES = ["밥", "국물", "반찬", "한그릇"]
 PER_ROLE = 20  # 역할별로 가져올 후보 수
 
+# 저염("저염" nutrition_goal) 요청 시 개별 음식에 적용할 나트륨 상한(mg).
+# 한 끼 총합 KDRI 기준은 767mg/끼(validator와 동일). 한 끼가 밥+국+반찬으로 나뉘므로
+# 개별 음식엔 보수적 상한을 둬 젓갈·장아찌 등 고나트륨 음식을 사실 축에서 배제한다.
+LOW_SODIUM_MAX = 400.0
+
+
+def _wants_low_sodium(conditions) -> bool:
+    """LLM/폴백이 정규화한 nutrition_goals에 '저염' 태그가 있는지."""
+    return "저염" in (conditions.nutrition_goals or [])
+
+
 _FOODS_CACHE: list[FoodItem] | None = None
 
 
@@ -149,6 +160,8 @@ def _retrieve_supabase(conditions, profile, relax: bool) -> dict:
 
     excluded = [x for x in (list(profile.allergies) + list(conditions.exclude_foods)) if x]
     max_kcal = conditions.target_kcal if (conditions.target_kcal and not relax) else None
+    # 저염 요청이면 나트륨 상한을 사실 축(DB 필터)으로 전달. relax(재검색) 시에는 완화.
+    max_sodium = LOW_SODIUM_MAX if (_wants_low_sodium(conditions) and not relax) else None
 
     result: dict[str, list[FoodItem]] = {role: [] for role in ROLES}
     for role in ROLES:
@@ -160,6 +173,8 @@ def _retrieve_supabase(conditions, profile, relax: bool) -> dict:
         }
         if max_kcal is not None:
             params["max_kcal"] = max_kcal
+        if max_sodium is not None:
+            params["max_sodium"] = max_sodium
         rows = client.rpc("match_foods", params).execute().data or []
         result[role] = [_row_to_food(r) for r in rows]
     return result
@@ -171,6 +186,7 @@ def _retrieve_csv(conditions, profile, foods, relax: bool) -> dict:
         foods = load_foods()
     excluded = [x for x in (list(profile.allergies) + list(conditions.exclude_foods)) if x]
     max_kcal = conditions.target_kcal if (conditions.target_kcal and not relax) else None
+    max_sodium = LOW_SODIUM_MAX if (_wants_low_sodium(conditions) and not relax) else None
 
     result: dict[str, list[FoodItem]] = {role: [] for role in ROLES}
     for food in foods:
@@ -179,6 +195,8 @@ def _retrieve_csv(conditions, profile, foods, relax: bool) -> dict:
         if any(x in food.food_name for x in excluded):
             continue
         if max_kcal and food.kcal > max_kcal:
+            continue
+        if max_sodium is not None and food.sodium > max_sodium:
             continue
         result[food.meal_role].append(food)
     return result
