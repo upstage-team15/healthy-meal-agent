@@ -5,7 +5,7 @@ Ports ``src/components/Sidebar.tsx``.
 
 import streamlit as st
 
-from chat_state import conversation_has_started, create_new_chat, get_active_conversation
+from chat_state import create_new_chat, register_profile
 
 ALLERGEN_TAGS = ["대두", "밀가루", "우유", "땅콩", "계란", "새우", "복숭아"]
 
@@ -44,11 +44,11 @@ def render_sidebar() -> None:
 
         st.html('<div class="section-label">나의 건강 프로필</div>')
 
-        profile_locked = conversation_has_started(get_active_conversation())
+        profile_locked = st.session_state.profile_registered
         if profile_locked:
             st.html(
                 '<div class="validator-note">'
-                "🔒 이미 시작된 대화에서는 프로필을 수정할 수 없어요. "
+                "🔒 등록된 프로필은 수정할 수 없어요. "
                 "'+ 새 대화'를 누르면 다시 설정할 수 있습니다."
                 "</div>"
             )
@@ -122,4 +122,12 @@ def render_sidebar() -> None:
         st.session_state.allergens = ["없음"] if no_allergy else selected
 
         st.divider()
+        with st.container(key="register_profile_btn"):
+            st.button(
+                "프로필 등록",
+                use_container_width=True,
+                type="primary",
+                disabled=profile_locked,
+                on_click=register_profile,
+            )
         st.button("＋ 새 대화", use_container_width=True, on_click=_start_new_chat)

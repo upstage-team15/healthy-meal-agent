@@ -196,17 +196,29 @@ else:
     for message in active_conversation["messages"]:
         render_message(message)
 
+    profile_registered = st.session_state.profile_registered
+    if not profile_registered:
+        st.info("👈 왼쪽에서 건강 프로필을 입력하고 '프로필 등록' 버튼을 눌러주세요.")
+
     # ---------- Quick replies ----------
     qr_cols = st.columns(len(QUICK_REPLIES))
     quick_prompt = None
     for col, quick_reply in zip(qr_cols, QUICK_REPLIES):
         with col:
-            if st.button(quick_reply, key=f"quick_{quick_reply}", use_container_width=True):
+            if st.button(
+                quick_reply,
+                key=f"quick_{quick_reply}",
+                use_container_width=True,
+                disabled=not profile_registered,
+            ):
                 quick_prompt = quick_reply
 
     # ---------- Chat input ----------
     prompt = st.chat_input(
         "원하시는 식사를 말씀해 주세요... (예: 400kcal 안으로 야채 많은 점심 추천해줘)"
+        if profile_registered
+        else "프로필을 먼저 등록해주세요",
+        disabled=not profile_registered,
     )
 
     final_prompt = prompt or quick_prompt
