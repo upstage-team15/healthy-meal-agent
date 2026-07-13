@@ -1,52 +1,64 @@
-"""backend/routers/chat.py의 SSE 엔드포인트(/api/v1/chat)와 통신하는 클라이언트.
-
-status(진행 단계) -> result(최종 ChatResponse) 또는 error 이벤트를 순서대로 yield한다.
-"""
-
 from __future__ import annotations
 
-import json
 import os
-from collections.abc import Iterator
 
 import httpx
 
+
 API_BASE_URL = os.getenv("HEALTHY_MEAL_API_URL", "http://127.0.0.1:8000").rstrip("/")
-CHAT_STREAM_URL = f"{API_BASE_URL}/api/v1/chat"
+CHAT_SYNC_URL = f"{API_BASE_URL}/api/v1/chat/sync"
 
 
-def stream_chat(message: str, profile: dict | None = None) -> Iterator[tuple[str, dict]]:
-    payload: dict = {"message": message}
-    if profile:
-        payload["profile"] = profile
+def build_agent_payload(api_response: dict) -> dict | None:
+    meal_type = api_response.get("meal_type")
+    items = api_response.get("items") or []
+    nutrition = api_response.get("nutrition")
+    if not meal_type and not items and not nutrition:
+        return None
 
+    return {
+        "meal_plan": {
+            "meal_type": meal_type or "추천",
+            "items": items,
+            "reason": api_response.get("reason", ""),
+        },
+        "nutrition_total": nutrition,
+        "validation_result": {
+            "status": api_response.get("status"),
+            "warnings": api_response.get("warnings") or [],
+        },
+        "retry_count": api_response.get("retry_count", 0),
+        "intent": api_response.get("intent"),
+    }
+
+
+def run_recommendation(user_text: str) -> tuple[str, dict | None]:
     try:
-        with httpx.stream("POST", CHAT_STREAM_URL, json=payload, timeout=60.0) as response:
-            response.raise_for_status()
-            event_type = None
-            for line in response.iter_lines():
-                if not line:
-                    continue
-                if line.startswith("event:"):
-                    event_type = line[len("event:") :].strip()
-                elif line.startswith("data:"):
-                    data = json.loads(line[len("data:") :].strip())
-                    yield event_type or "message", data
+        response = httpx.post(
+            CHAT_SYNC_URL,
+            json={"message": user_text, "profile": {}},
+            timeout=45,
+        )
+        response.raise_for_status()
+        data = response.json()
+        content = data.get("final_response") or "조건을 조금 더 알려주시면 식단을 다시 맞춰볼게요."
+        return content, build_agent_payload(data)
     except httpx.ConnectError:
-        yield (
-            "error",
-            {
-                "message": (
-                    "API 서버에 연결할 수 없어요. 백엔드를 먼저 실행해 주세요: "
-                    "`uvicorn backend.main:app --reload --port 8000` "
-                    f"(요청 URL: {CHAT_STREAM_URL})"
-                )
-            },
+        return (
+            "API 서버에 연결할 수 없어요.\n\n"
+            "백엔드를 먼저 실행해 주세요: `uv run uvicorn backend.main:app --reload --port 8000`\n\n"
+            f"요청 URL: `{CHAT_SYNC_URL}`",
+            None,
         )
     except httpx.HTTPStatusError as exc:
-        yield (
-            "error",
-            {"message": f"API가 오류 응답을 반환했어요 (상태 코드 {exc.response.status_code})."},
+        return (
+            "API가 오류 응답을 반환했어요.\n\n"
+            f"상태 코드: `{exc.response.status_code}`\n\n"
+            f"응답: `{exc.response.text[:500]}`",
+            None,
         )
-    except Exception as exc:  # noqa: BLE001
-        yield "error", {"message": f"요청 처리 중 오류가 발생했어요: {exc}"}
+    except Exception as exc:
+        return (
+            f"API 요청을 처리하는 중 오류가 발생했어요.\n\n```text\n{exc}\n```",
+            None,
+        )
