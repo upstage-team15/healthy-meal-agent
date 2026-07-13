@@ -90,6 +90,15 @@ html, body, [class*="css"] {
 .profile-name { font-size: 13px; font-weight: 600; color: var(--foreground); }
 .profile-meta { font-size: 11px; color: var(--muted-foreground); }
 
+/* 테마의 primaryColor(민트)가 앱 브랜드 컬러(sage)와 안 맞아서, 등록 버튼만
+   sage로 덮어쓴다. */
+.st-key-register_profile_btn button[kind="primary"] {
+  background: var(--sage) !important; border-color: var(--sage) !important;
+}
+.st-key-register_profile_btn button[kind="primary"]:disabled {
+  background: var(--sage-light) !important; border-color: var(--sage-light) !important; opacity: 0.6;
+}
+
 /* ---------- Top bar ---------- */
 /* sticky는 "바로 위 부모 요소의 박스"를 벗어나 고정될 수 없다. Streamlit은
    각 컨테이너를 감싸는 stLayoutWrapper의 높이를 그 컨테이너 콘텐츠 높이에
@@ -97,17 +106,24 @@ html, body, [class*="css"] {
    부모와 함께 밀려 올라간다. 전체 페이지를 담는 조상(부모의 부모)까지
    내려오는 스크롤 범위를 확보하려면, 부모(stLayoutWrapper) 쪽에
    position: sticky를 걸어야 한다. */
-/* Streamlit 자체 상단 툴바(햄버거 메뉴 등)가 z-index 999990으로 항상
-   스크롤 영역 위에 떠 있다. top:0으로 고정하면 그 툴바 바로 밑(같은
-   지점)에 붙어 가려지므로, 툴바 높이(약 56px)만큼 내려서 고정한다. */
+/* Streamlit은 헤더를 숨겼는지와 무관하게 .block-container에 항상
+   padding-top: 6rem을 고정으로 넣는다(hasTopNav 여부로만 6rem/8rem을
+   정함) — 헤더를 없앴어도 그 자리만큼 빈 여백이 그대로 남는 이유.
+   제목바가 맨 위에 붙도록 이 여백을 직접 없앤다. */
+[data-testid="stMainBlockContainer"] { padding-top: 0 !important; }
+/* stAppToolbar 자체를 숨겼으니 그 높이를 피해 내려줄 필요가 없다. */
 div:has(> .st-key-topbar) {
-  position: sticky !important; top: 3.5rem !important; z-index: 999 !important;
+  position: sticky !important; top: 0 !important; z-index: 999 !important;
   background: var(--background) !important;
 }
 .st-key-topbar {
   padding-top: 0.5rem;
 }
 .st-key-topbar .stDivider { margin-bottom: 0; }
+/* 새 메시지가 도착하면 브라우저가 그 메시지를 화면으로 스크롤해 보여주는데,
+   sticky 상단바 높이(약 7.5rem)만큼 여유를 안 주면 그 메시지의 위쪽
+   (아바타·이름표)이 상단바 뒤로 가려진 채 스크롤이 멈춘다. */
+[data-testid="stChatMessage"] { scroll-margin-top: 7.5rem; }
 .topbar-brand { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; }
 .status-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 99px;
@@ -254,5 +270,8 @@ div:has(> .st-key-topbar) {
 
 footer, #MainMenu { visibility: hidden; }
 [data-testid="stAppDeployButton"] { display: none; }
+/* 툴바(.stAppToolbar)만 숨기면 그 부모인 stHeader의 배경이 남아 우리
+   sticky 상단바를 여전히 덮어버린다 — 헤더 전체를 없애야 한다. */
+[data-testid="stHeader"] { display: none !important; }
 </style>
 """
