@@ -5,7 +5,7 @@ Ports ``src/components/Sidebar.tsx``.
 
 import streamlit as st
 
-from chat_state import create_new_chat
+from chat_state import conversation_has_started, create_new_chat, get_active_conversation
 
 ALLERGEN_TAGS = ["대두", "밀가루", "우유", "땅콩", "계란", "새우", "복숭아"]
 
@@ -42,6 +42,15 @@ def render_sidebar() -> None:
 
         st.html('<div class="section-label">나의 건강 프로필</div>')
 
+        profile_locked = conversation_has_started(get_active_conversation())
+        if profile_locked:
+            st.html(
+                '<div class="validator-note">'
+                "🔒 이미 시작된 대화에서는 프로필을 수정할 수 없어요. "
+                "'+ 새 대화'를 누르면 다시 설정할 수 있습니다."
+                "</div>"
+            )
+
         st.html('<div class="field-label">성별</div>')
         gender_label = st.radio(
             "성별",
@@ -50,6 +59,7 @@ def render_sidebar() -> None:
             label_visibility="collapsed",
             index=0 if st.session_state.gender == "male" else 1,
             key="gender_radio",
+            disabled=profile_locked,
         )
         st.session_state.gender = "male" if gender_label == "남성" else "female"
 
@@ -60,6 +70,7 @@ def render_sidebar() -> None:
             index=AGE_GROUPS.index(st.session_state.age_group),
             label_visibility="collapsed",
             format_func=lambda a: f"{a}세",
+            disabled=profile_locked,
         )
         st.session_state.age_group = age_group
 
@@ -90,14 +101,16 @@ def render_sidebar() -> None:
             """
         )
 
-        no_allergy = st.checkbox("해당 없음", value=st.session_state.allergens == ["없음"])
+        no_allergy = st.checkbox(
+            "해당 없음", value=st.session_state.allergens == ["없음"], disabled=profile_locked
+        )
         selected = st.multiselect(
             "알레르기 성분 선택",
             options=ALLERGEN_TAGS,
             default=[a for a in st.session_state.allergens if a in ALLERGEN_TAGS],
             label_visibility="collapsed",
             placeholder="해당하는 알레르기 성분을 선택하세요",
-            disabled=no_allergy,
+            disabled=no_allergy or profile_locked,
         )
         st.session_state.allergens = ["없음"] if no_allergy else selected
 

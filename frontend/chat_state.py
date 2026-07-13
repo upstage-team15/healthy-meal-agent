@@ -56,10 +56,14 @@ def select_conversation(conversation_id: str) -> None:
     st.session_state.active_conversation_id = conversation_id
 
 
+def conversation_has_started(conversation: dict) -> bool:
+    """사용자 메시지가 하나라도 있으면(=인사말만 있는 새 대화가 아니면) True."""
+    return any(m["role"] == "user" for m in conversation["messages"])
+
+
 def update_conversation_title(conversation: dict, user_text: str) -> None:
     """첫 사용자 메시지가 들어오기 전(인사말만 있을 때)에만 제목을 자동 생성."""
-    has_user_message = any(m["role"] == "user" for m in conversation["messages"])
-    if has_user_message:
+    if conversation_has_started(conversation):
         return
 
     compact = " ".join(user_text.split())
