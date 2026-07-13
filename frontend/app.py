@@ -45,29 +45,29 @@ def init_state() -> None:
 init_state()
 render_sidebar()
 
-# ---------- Top bar ----------
-top_left, top_right = st.columns([3, 1])
-with top_left:
-    st.html(
-        """
-        <div class="topbar-brand">
-          <span class="status-dot"></span>
-          <span class="topbar-title">NutriAgent AI 영양사</span>
-          <span class="badge badge-sage">KDRI 2025</span>
-        </div>
-        """
-    )
-with top_right:
-    with st.container(key="tab_switcher"):
-        active_tab = st.radio(
-            "보기",
-            ["💬 채팅", "📋 히스토리"],
-            horizontal=True,
-            label_visibility="collapsed",
-            key="active_tab",
+# ---------- Top bar (sticky) ----------
+with st.container(key="topbar"):
+    top_left, top_right = st.columns([3, 1])
+    with top_left:
+        st.html(
+            """
+            <div class="topbar-brand">
+              <span class="status-dot"></span>
+              <span class="topbar-title">NutriAgent AI 영양사</span>
+              <span class="badge badge-sage">KDRI 2025</span>
+            </div>
+            """
         )
-
-st.divider()
+    with top_right:
+        with st.container(key="tab_switcher"):
+            active_tab = st.radio(
+                "보기",
+                ["💬 채팅", "📋 히스토리"],
+                horizontal=True,
+                label_visibility="collapsed",
+                key="active_tab",
+            )
+    st.divider()
 
 
 def render_response_body(response: dict) -> None:
