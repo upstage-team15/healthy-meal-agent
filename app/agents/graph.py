@@ -29,6 +29,30 @@ from app.services.validator import validate_meal
 
 MAX_RETRY = 2
 
+
+def _build_giveup_message(conditions, meal_plan, validation_result) -> str:
+    """재시도를 다 쓰고도 기준을 못 맞췄을 때의 정직한 안내.
+
+    이상한(FAIL) 식단을 그대로 보여주지 않고, 왜 어려운지 + 어떻게 완화할지 알려준다.
+    (준우 요청: "400kcal 이하로는 백반 구성이 어려워요" 식의 구체 안내)
+    """
+    target = getattr(conditions, "target_kcal", None)
+    mtype = getattr(meal_plan, "meal_type", None) if meal_plan else None
+    reason = ""
+    if validation_result and validation_result.failures:
+        reason = " " + validation_result.failures[0]
+
+    if target and mtype:
+        return (
+            f"{target:.0f}kcal 조건으로는 {mtype} 구성이 어려웠어요.{reason} "
+            f"칼로리를 조금 올리거나, 다른 형태(한그릇/백반)로 바꿔서 다시 요청해 주시겠어요?"
+        )
+    return (
+        "조건을 모두 만족하는 식단을 찾지 못했어요."
+        f"{reason} 칼로리나 제외 조건을 조금 완화해 주시겠어요?"
+    )
+
+
 # 추천이 아닌 분기에서 돌려줄 정해진 응답 (환각 없이 코드가 안내)
 RISKY_RESPONSE = (
     "건강을 해칠 수 있는 요청은 도와드리기 어려워요. "
@@ -153,8 +177,8 @@ def create_graph(
             updates["retry_count"] = retry_count + 1
             return updates
 
-        updates["final_response"] = (
-            "조건을 모두 만족하는 식단을 찾지 못했어요. 칼로리나 제외 조건을 조금 완화해 주시겠어요?"
+        updates["final_response"] = _build_giveup_message(
+            state["conditions"], state.get("meal_plan"), validation_result
         )
         return updates
 
