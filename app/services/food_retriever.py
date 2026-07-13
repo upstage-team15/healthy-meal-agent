@@ -41,10 +41,21 @@ def _opt_float(value) -> float | None:
 
 
 def _parse_json_list(value) -> list[str]:
-    """recipe_steps/images: JSON 배열 문자열 → list[str]. 실패 시 빈 리스트."""
+    """recipe_steps/images → list[str].
+
+    두 경로를 모두 받는다:
+      - Supabase jsonb 컬럼 → supabase-py가 이미 list로 역직렬화해서 줌.
+      - CSV 문자열 → JSON 배열 문자열.
+    실패 시 빈 리스트.
+    """
     import json
 
-    s = str(value).strip() if value is not None else ""
+    if value is None:
+        return []
+    # jsonb 컬럼은 이미 파이썬 list로 온다
+    if isinstance(value, list):
+        return [str(x) for x in value]
+    s = str(value).strip()
     if not s or s.lower() == "nan":
         return []
     try:
