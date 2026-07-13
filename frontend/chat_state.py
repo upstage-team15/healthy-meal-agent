@@ -13,6 +13,8 @@ INITIAL_GREETING = (
     "오늘 어떤 식사를 찾고 계신가요?"
 )
 
+PROFILE_DEFAULTS = {"gender": "male", "age_group": "19-29", "allergens": [], "target_kcal": 0}
+
 
 def now_label() -> str:
     return datetime.now().strftime("%H:%M")
@@ -46,10 +48,19 @@ def get_active_conversation() -> dict:
     return conversations[0]
 
 
+def reset_profile() -> None:
+    for key, value in PROFILE_DEFAULTS.items():
+        st.session_state[key] = value
+    # 프로필 위젯들은 key에 이 값을 덧붙여, 값이 바뀔 때마다 새 위젯 인스턴스로
+    # 취급되게 한다 — 그래야 위젯 자체 상태가 아니라 위 기본값을 실제로 반영한다.
+    st.session_state.profile_reset_token = st.session_state.get("profile_reset_token", 0) + 1
+
+
 def create_new_chat() -> None:
     conversation = new_conversation()
     st.session_state.conversations.insert(0, conversation)
     st.session_state.active_conversation_id = conversation["id"]
+    reset_profile()
 
 
 def select_conversation(conversation_id: str) -> None:

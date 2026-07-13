@@ -10,6 +10,7 @@ import streamlit as st
 from styles import CUSTOM_CSS
 from api_client import stream_chat
 from chat_state import (
+    PROFILE_DEFAULTS,
     get_active_conversation,
     init_conversations,
     select_conversation,
@@ -36,8 +37,7 @@ QUICK_REPLIES = [
 
 
 def init_state() -> None:
-    defaults = {"gender": "male", "age_group": "19-29", "allergens": [], "target_kcal": 0}
-    for key, value in defaults.items():
+    for key, value in PROFILE_DEFAULTS.items():
         st.session_state.setdefault(key, value)
     init_conversations()
 

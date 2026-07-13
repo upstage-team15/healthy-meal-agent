@@ -27,6 +27,8 @@ def _start_new_chat() -> None:
 
 
 def render_sidebar() -> None:
+    reset_token = st.session_state.get("profile_reset_token", 0)
+
     with st.sidebar:
         st.html(
             """
@@ -58,7 +60,7 @@ def render_sidebar() -> None:
             horizontal=True,
             label_visibility="collapsed",
             index=0 if st.session_state.gender == "male" else 1,
-            key="gender_radio",
+            key=f"gender_radio_{reset_token}",
             disabled=profile_locked,
         )
         st.session_state.gender = "male" if gender_label == "남성" else "female"
@@ -70,6 +72,7 @@ def render_sidebar() -> None:
             index=AGE_GROUPS.index(st.session_state.age_group),
             label_visibility="collapsed",
             format_func=lambda a: f"{a}세",
+            key=f"age_group_select_{reset_token}",
             disabled=profile_locked,
         )
         st.session_state.age_group = age_group
@@ -102,7 +105,10 @@ def render_sidebar() -> None:
         )
 
         no_allergy = st.checkbox(
-            "해당 없음", value=st.session_state.allergens == ["없음"], disabled=profile_locked
+            "해당 없음",
+            value=st.session_state.allergens == ["없음"],
+            key=f"no_allergy_checkbox_{reset_token}",
+            disabled=profile_locked,
         )
         selected = st.multiselect(
             "알레르기 성분 선택",
@@ -110,6 +116,7 @@ def render_sidebar() -> None:
             default=[a for a in st.session_state.allergens if a in ALLERGEN_TAGS],
             label_visibility="collapsed",
             placeholder="해당하는 알레르기 성분을 선택하세요",
+            key=f"allergen_multiselect_{reset_token}",
             disabled=no_allergy or profile_locked,
         )
         st.session_state.allergens = ["없음"] if no_allergy else selected
