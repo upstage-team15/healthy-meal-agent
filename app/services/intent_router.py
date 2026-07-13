@@ -27,9 +27,11 @@ load_dotenv()
 # "하루 500kcal" 처럼 숫자만으로 위험한 요청은 LLM이 놓칠 수 있어, 코드로도 확실히 잡는다.
 # "판단은 LLM, 사실은 코드" 원칙: 하루 단위 극단 수치는 사실이므로 코드가 결정론적으로 차단.
 _DAILY_HINTS = ("하루", "일일", "1일", "하룻", "종일", "온종일")
+# 한 끼 단위임을 드러내는 표현. 이게 있으면 낮은 kcal이라도 정상적인 한 끼 요청으로 본다.
+_MEAL_HINTS = ("한 끼", "한끼", "끼", "점심", "저녁", "아침", "브런치", "간식")
 # 하루 단위로 이 값 이하를 요구하면 극단(성인 최소 필요량 훨씬 미만) → risky
 _DAILY_KCAL_DANGER = 1000
-# 끼/맥락 없이 그냥 극단적으로 낮은 값(끼로 봐도 부실)도 위험 신호
+# 맥락(하루/끼)이 아예 없을 때, 이 값 이하는 하루 총량으로 해석해 위험으로 본다.
 _ABSOLUTE_KCAL_DANGER = 250
 
 
@@ -44,9 +46,13 @@ def _extract_kcal_values(text: str) -> list[int]:
 def is_extreme_low_calorie(user_message: str) -> bool:
     """
     극단적 저칼로리 식이 요청인지 코드로 판정(위험 가드레일).
+
+    맥락에 따라 다르게 본다:
     - '하루/일일' 맥락 + 1000kcal 이하  → 위험 (하루 총량이 너무 적음)
-    - 250kcal 이하  → 위험 (한 끼로 봐도 극단적으로 부실)
-    끼 단위 정상 요청(예: '400kcal 점심')은 걸리지 않게 한다.
+    - '점심/아침/한 끼' 등 끼 맥락  → 위험으로 보지 않음 (낮아도 정상적인 한 끼 요청)
+    - 맥락이 아예 없는데 250kcal 이하  → 위험 (하루 총량으로 해석)
+
+    예) "하루 500kcal" → 위험 / "점심 250kcal" → 정상 / "200kcal로 살빼기" → 위험
     """
     text = user_message
     kcals = _extract_kcal_values(text)
@@ -54,9 +60,15 @@ def is_extreme_low_calorie(user_message: str) -> bool:
         return False
     lowest = min(kcals)
     has_daily = any(h in text for h in _DAILY_HINTS)
+    has_meal = any(h in text for h in _MEAL_HINTS)
 
+    # 하루 단위 극단은 항상 위험 (끼 표현이 섞여 있어도 '하루'가 우선)
     if has_daily and lowest <= _DAILY_KCAL_DANGER:
         return True
+    # 끼 맥락이 명시되면 낮은 값이라도 정상적인 한 끼 요청으로 본다
+    if has_meal:
+        return False
+    # 맥락이 전혀 없을 때만 극단적으로 낮은 값을 하루 총량으로 해석해 위험 처리
     if lowest <= _ABSOLUTE_KCAL_DANGER:
         return True
     return False

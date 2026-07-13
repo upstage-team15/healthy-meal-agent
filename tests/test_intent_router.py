@@ -33,11 +33,26 @@ def test_extreme_low_calorie_flagged_as_risky():
     assert classify_intent_stub("200kcal로 하루 버티기") == "risky"
 
 
+def test_extreme_low_calorie_no_context_flagged():
+    # 맥락(하루/끼)이 전혀 없는데 극단적으로 낮으면 하루 총량으로 해석해 risky
+    assert classify_intent_stub("100kcal 다이어트") == "risky"
+    assert classify_intent_stub("250kcal 살빼기") == "risky"
+
+
+def test_daily_context_overrides_meal_hint():
+    # '하루'가 있으면 '점심' 같은 끼 표현이 섞여 있어도 하루 우선 → risky
+    assert classify_intent_stub("하루 점심만 300kcal로 버티기") == "risky"
+
+
 def test_normal_per_meal_low_calorie_not_risky():
-    # 끼 단위 저칼로리(정상 요청)는 risky로 오탐하면 안 된다 — 시연 핵심 경로
+    # 끼 맥락(점심/아침/한 끼)이 명시된 저칼로리는 정상 요청 — risky 오탐 금지 (AI리뷰 지적)
+    assert classify_intent_stub("점심 250kcal로 추천해줘") == "meal_recommend"
+    assert classify_intent_stub("아침 200kcal 가볍게") == "meal_recommend"
+    assert classify_intent_stub("한 끼 230kcal로") == "meal_recommend"
+    assert classify_intent_stub("저녁 240kcal 샐러드") == "meal_recommend"
+    # 원래 정상이던 경로도 유지
     assert classify_intent_stub("400kcal 이하로 담백한 점심 추천") == "meal_recommend"
     assert classify_intent_stub("300kcal 이하로 칼칼한 거 추천해줘") == "meal_recommend"
-    assert classify_intent_stub("500kcal 저녁 추천") == "meal_recommend"
 
 
 def test_stub_classifies_need_more_info():
