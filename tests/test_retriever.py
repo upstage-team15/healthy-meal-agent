@@ -44,6 +44,40 @@ def test_kcal_ceiling_csv():
             assert f.kcal <= 300
 
 
+def test_low_sodium_filters_high_sodium_candidates_csv():
+    """'저염' nutrition_goal이 있으면 고나트륨 후보가 사실 축에서 배제되는지 (CSV 경로)"""
+    from app.services.food_retriever import LOW_SODIUM_MAX
+
+    cond = UserConditions(nutrition_goals=["저염"])
+    result = retrieve_foods(cond, UserProfile(), foods=load_foods())
+    total = 0
+    for foods in result.values():
+        for f in foods:
+            assert f.sodium <= LOW_SODIUM_MAX  # 상한 초과 후보는 없어야 함
+            total += 1
+    assert total > 0  # 저염이어도 후보 자체는 남아야 함
+
+
+def test_no_sodium_filter_when_not_low_sodium_csv():
+    """저염 요청이 아니면 나트륨 필터가 걸리지 않아 고나트륨 음식도 후보에 남는지"""
+    from app.services.food_retriever import LOW_SODIUM_MAX
+
+    cond = UserConditions()  # nutrition_goals 없음
+    result = retrieve_foods(cond, UserProfile(), foods=load_foods())
+    has_high = any(f.sodium > LOW_SODIUM_MAX for foods in result.values() for f in foods)
+    assert has_high  # 제한이 없으므로 고나트륨 음식이 존재해야 정상
+
+
+def test_low_sodium_relax_disables_filter_csv():
+    """relax(재검색) 시에는 저염 필터를 완화해 후보 폭을 넓히는지"""
+    from app.services.food_retriever import LOW_SODIUM_MAX
+
+    cond = UserConditions(nutrition_goals=["저염"])
+    result = retrieve_foods(cond, UserProfile(), foods=load_foods(), relax=True)
+    has_high = any(f.sodium > LOW_SODIUM_MAX for foods in result.values() for f in foods)
+    assert has_high  # relax면 상한 초과도 다시 허용
+
+
 def test_build_search_query_semantic_only():
     """검색문에 의미 조건만 담기고 숫자/제외는 안 담기는지"""
     cond = UserConditions(

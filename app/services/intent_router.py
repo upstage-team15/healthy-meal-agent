@@ -15,12 +15,52 @@ app/services/intent_router.py
 """
 
 import os
+import re
 
 from dotenv import load_dotenv
 
 from app.schemas import IntentType
 
 load_dotenv()
+
+# ── 극단적 저칼로리 안전망 (결정론적 코드) ────────────────────────────
+# "하루 500kcal" 처럼 숫자만으로 위험한 요청은 LLM이 놓칠 수 있어, 코드로도 확실히 잡는다.
+# "판단은 LLM, 사실은 코드" 원칙: 하루 단위 극단 수치는 사실이므로 코드가 결정론적으로 차단.
+_DAILY_HINTS = ("하루", "일일", "1일", "하룻", "종일", "온종일")
+# 하루 단위로 이 값 이하를 요구하면 극단(성인 최소 필요량 훨씬 미만) → risky
+_DAILY_KCAL_DANGER = 1000
+# 끼/맥락 없이 그냥 극단적으로 낮은 값(끼로 봐도 부실)도 위험 신호
+_ABSOLUTE_KCAL_DANGER = 250
+
+
+def _extract_kcal_values(text: str) -> list[int]:
+    """문장에서 'NNNkcal' / 'NNN 칼로리' / 'NNN킬로칼로리' 형태의 숫자를 뽑는다."""
+    values: list[int] = []
+    for m in re.finditer(r"(\d{2,5})\s*(kcal|칼로리|킬로칼로리|키로칼로리)", text, re.IGNORECASE):
+        values.append(int(m.group(1)))
+    return values
+
+
+def is_extreme_low_calorie(user_message: str) -> bool:
+    """
+    극단적 저칼로리 식이 요청인지 코드로 판정(위험 가드레일).
+    - '하루/일일' 맥락 + 1000kcal 이하  → 위험 (하루 총량이 너무 적음)
+    - 250kcal 이하  → 위험 (한 끼로 봐도 극단적으로 부실)
+    끼 단위 정상 요청(예: '400kcal 점심')은 걸리지 않게 한다.
+    """
+    text = user_message
+    kcals = _extract_kcal_values(text)
+    if not kcals:
+        return False
+    lowest = min(kcals)
+    has_daily = any(h in text for h in _DAILY_HINTS)
+
+    if has_daily and lowest <= _DAILY_KCAL_DANGER:
+        return True
+    if lowest <= _ABSOLUTE_KCAL_DANGER:
+        return True
+    return False
+
 
 VALID_INTENTS = {
     "meal_recommend",
@@ -37,8 +77,8 @@ INTENT_PROMPT = """당신은 건강한 한 끼 식단 추천 서비스의 요청
   예) "400kcal 이하로 가볍게 한 끼 추천해줘", "얼큰한 거 먹고 싶어", "저녁 뭐 먹을까 담백한 걸로"
 - nutrition_query: 특정 음식의 영양성분(칼로리·나트륨·단백질 등)을 물어봄. 추천이 아님.
   예) "김치찌개 나트륨 얼마야?", "비빔밥 칼로리 알려줘"
-- risky: 건강에 해롭거나 부적절한 식이 요청(굶기, 극단적 단식, 특정 영양소 과다 등).
-  예) "살 빼게 하루 한 끼도 안 먹는 식단 짜줘", "물만 마시는 다이어트 알려줘"
+- risky: 건강에 해롭거나 부적절한 식이 요청(굶기, 극단적 단식, 하루 총열량이 지나치게 낮은 식단, 특정 영양소 과다 등).
+  예) "살 빼게 하루 한 끼도 안 먹는 식단 짜줘", "물만 마시는 다이어트 알려줘", "하루 500kcal 식단 짜줘", "하루 800kcal로 극단적으로 살 빼는 식단"
 - out_of_scope: 음식·식단과 무관한 요청.
   예) "오늘 날씨 어때?", "파이썬 코드 짜줘"
 - need_more_info: 추천을 원하는 것 같지만 조건이 없어 되물어야 함.
@@ -49,6 +89,9 @@ INTENT_PROMPT = """당신은 건강한 한 끼 식단 추천 서비스의 요청
 
 def classify_intent_llm(user_message: str) -> IntentType:
     """Solar로 의도 분류. 실패 시 stub 폴백."""
+    # 코드 안전망 먼저: 극단적 저칼로리는 LLM 판단과 무관하게 결정론적으로 차단.
+    if is_extreme_low_calorie(user_message):
+        return "risky"
     try:
         import litellm
 
@@ -94,6 +137,10 @@ def classify_intent_stub(user_message: str) -> IntentType:
     """규칙기반 폴백 (LLM 실패 시). 완벽하진 않지만 서비스가 죽지 않게 한다."""
     text = user_message.strip()
     low = text.replace(" ", "")
+
+    # 극단 저칼로리(하루 단위 등) 코드 안전망 — LLM 없이도 동일하게 차단
+    if is_extreme_low_calorie(text):
+        return "risky"
 
     if any(h in text for h in _RISKY_HINTS):
         return "risky"
