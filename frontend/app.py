@@ -198,16 +198,19 @@ else:
 
     # ---------- Quick replies ----------
     qr_cols = st.columns(len(QUICK_REPLIES))
+    quick_prompt = None
     for col, quick_reply in zip(qr_cols, QUICK_REPLIES):
         with col:
             if st.button(quick_reply, key=f"quick_{quick_reply}", use_container_width=True):
-                process_message(quick_reply)
+                quick_prompt = quick_reply
 
     # ---------- Chat input ----------
     prompt = st.chat_input(
         "원하시는 식사를 말씀해 주세요... (예: 400kcal 안으로 야채 많은 점심 추천해줘)"
     )
-    if prompt:
-        process_message(prompt)
+
+    final_prompt = prompt or quick_prompt
+    if final_prompt:
+        process_message(final_prompt)
 
 st.caption("NutriAgent는 의료 진단을 대신하지 않습니다 · 2025 KDRI 기준 적용 중")
