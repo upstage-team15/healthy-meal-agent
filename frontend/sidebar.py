@@ -9,8 +9,9 @@ def render_sidebar_header() -> None:
     st.html(
         """
         <div class="sidebar-brand">
-            <div class="sidebar-title">Healthy Meal Agent</div>
-            <div class="sidebar-caption">조건을 듣고 한 끼를 깔끔하게 정리합니다.</div>
+            <div>
+                <div class="sidebar-title">Meal Agent</div>
+            </div>
         </div>
         """,
     )
@@ -25,7 +26,7 @@ def render_sidebar() -> None:
     render_sidebar_header()
 
     if st.button(
-        "새 대화",
+        "새 채팅",
         key="sidebar_new_chat",
         icon=":material/add:",
         width="stretch",
@@ -36,11 +37,11 @@ def render_sidebar() -> None:
     query = st.text_input(
         "대화 검색",
         key="conversation_search",
-        placeholder="대화 검색",
+        placeholder="채팅 검색",
         label_visibility="collapsed",
     ).strip()
 
-    st.html('<div class="sidebar-section-label">대화</div>')
+    st.html('<div class="sidebar-section-label">최근</div>')
 
     conversations = st.session_state.conversations
     filtered = [
@@ -53,23 +54,16 @@ def render_sidebar() -> None:
         st.html('<div class="sidebar-empty">검색 결과가 없습니다.</div>')
         return
 
-    option_ids = [conversation["id"] for conversation in filtered]
-    current_id = st.session_state.active_conversation_id
-    if current_id not in option_ids:
-        current_id = option_ids[0]
-
-    selected_id = st.radio(
-        "대화 목록",
-        option_ids,
-        index=option_ids.index(current_id),
-        format_func=lambda option_id: format_conversation_title(
-            next(conversation for conversation in filtered if conversation["id"] == option_id)
-        ),
-        key="conversation_radio",
-        label_visibility="collapsed",
-        width="stretch",
-    )
-
-    if selected_id != st.session_state.active_conversation_id:
-        select_conversation(selected_id)
-        st.rerun()
+    for conversation in filtered:
+        label = format_conversation_title(conversation)
+        is_active = conversation["id"] == st.session_state.active_conversation_id
+        if st.button(
+            label,
+            key=f"conversation_{conversation['id']}",
+            icon=":material/chat_bubble:",
+            type="primary" if is_active else "secondary",
+            width="stretch",
+        ):
+            if not is_active:
+                select_conversation(conversation["id"])
+                st.rerun()
