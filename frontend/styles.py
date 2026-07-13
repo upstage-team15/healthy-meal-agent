@@ -91,6 +91,23 @@ html, body, [class*="css"] {
 .profile-meta { font-size: 11px; color: var(--muted-foreground); }
 
 /* ---------- Top bar ---------- */
+/* sticky는 "바로 위 부모 요소의 박스"를 벗어나 고정될 수 없다. Streamlit은
+   각 컨테이너를 감싸는 stLayoutWrapper의 높이를 그 컨테이너 콘텐츠 높이에
+   딱 맞추므로, .st-key-topbar 자신에 sticky를 걸면 스크롤 즉시 그 짧은
+   부모와 함께 밀려 올라간다. 전체 페이지를 담는 조상(부모의 부모)까지
+   내려오는 스크롤 범위를 확보하려면, 부모(stLayoutWrapper) 쪽에
+   position: sticky를 걸어야 한다. */
+/* Streamlit 자체 상단 툴바(햄버거 메뉴 등)가 z-index 999990으로 항상
+   스크롤 영역 위에 떠 있다. top:0으로 고정하면 그 툴바 바로 밑(같은
+   지점)에 붙어 가려지므로, 툴바 높이(약 56px)만큼 내려서 고정한다. */
+div:has(> .st-key-topbar) {
+  position: sticky !important; top: 3.5rem !important; z-index: 999 !important;
+  background: var(--background) !important;
+}
+.st-key-topbar {
+  padding-top: 0.5rem;
+}
+.st-key-topbar .stDivider { margin-bottom: 0; }
 .topbar-brand { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; }
 .status-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 99px;
