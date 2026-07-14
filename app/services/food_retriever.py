@@ -164,6 +164,20 @@ def _wants_low_sodium(conditions) -> bool:
     return "저염" in (conditions.nutrition_goals or [])
 
 
+def _search_max_kcal(conditions, relax: bool):
+    """1차 검색의 kcal 상한. target('정도') 모드면 여유(+tolerance)를 둬 밥류가
+    초과로 원천 필터링되는 것을 막는다. upper('이하')는 여유 없이 그대로(안전축).
+    relax(재검색) 시에는 상한 없음.
+    """
+    from app.services.validator import TARGET_KCAL_TOLERANCE
+
+    if not conditions.target_kcal or relax:
+        return None
+    if conditions.kcal_mode == "target":
+        return conditions.target_kcal * (1 + TARGET_KCAL_TOLERANCE)
+    return conditions.target_kcal  # upper 또는 mode 미상은 그대로
+
+
 _FOODS_CACHE: list[FoodItem] | None = None
 
 
@@ -290,7 +304,7 @@ def _retrieve_supabase(conditions, profile, relax: bool) -> dict:
     neutral_vec = embed_query(_NEUTRAL_QUERY) if _FLAVOR_NEUTRAL_ROLES else query_vec
 
     excluded = [x for x in (list(profile.allergies) + list(conditions.exclude_foods)) if x]
-    max_kcal = conditions.target_kcal if (conditions.target_kcal and not relax) else None
+    max_kcal = _search_max_kcal(conditions, relax)
     # 저염 요청이면 나트륨 상한을 사실 축(DB 필터)으로 전달. relax(재검색) 시에는 완화.
     max_sodium = LOW_SODIUM_MAX if (_wants_low_sodium(conditions) and not relax) else None
 
@@ -324,7 +338,7 @@ def _retrieve_csv(conditions, profile, foods, relax: bool) -> dict:
     if foods is None:
         foods = load_foods()
     excluded = [x for x in (list(profile.allergies) + list(conditions.exclude_foods)) if x]
-    max_kcal = conditions.target_kcal if (conditions.target_kcal and not relax) else None
+    max_kcal = _search_max_kcal(conditions, relax)
     max_sodium = LOW_SODIUM_MAX if (_wants_low_sodium(conditions) and not relax) else None
 
     result: dict[str, list[FoodItem]] = {role: [] for role in ROLES}

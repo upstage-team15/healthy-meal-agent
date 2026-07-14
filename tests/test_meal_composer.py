@@ -44,11 +44,11 @@ def test_composed_meal_passes_validator():
 
 
 def test_target_mode_stays_within_range():
-    """target 모드(정도)는 ±10% 범위 안에서 조합되는지"""
+    """target 모드(정도)는 ±15% 범위 안에서 조합되는지 (validator와 동일 오차)"""
     cond = UserConditions(target_kcal=600, kcal_mode="target", meal_style="백반")
     mp = _compose(cond)
     total = calculate_nutrition(mp).total_kcal
-    assert 600 * 0.9 <= total <= 600 * 1.1, f"{total}kcal가 600±10% 밖"
+    assert 600 * 0.85 <= total <= 600 * 1.15, f"{total}kcal가 600±15% 밖"
 
 
 def test_prefers_balanced_macro_combo():
