@@ -224,7 +224,13 @@ def _score(items: list[FoodItem], conditions: UserConditions) -> float:
         if protein_ratio < HIGH_PROTEIN_TARGET:
             penalty += (HIGH_PROTEIN_TARGET - protein_ratio) * 3  # 부족한 만큼 벌점
 
-    # 5) 아주 약한 다양성 유도: 음식 수가 지나치게 적은 것보다 2~3개 조합 선호
+    # 5) 국물 요청인데 조합에 국물이 없으면 벌점 (매콤한 국물 요리 → 국 포함되게)
+    if "국물" in (conditions.preferences or []):
+        has_soup = any(f.meal_role == "국물" for f in items)
+        if not has_soup:
+            penalty += 40
+
+    # 6) 아주 약한 다양성 유도: 음식 수가 지나치게 적은 것보다 2~3개 조합 선호
     if len(items) == 1:
         penalty += 5
 

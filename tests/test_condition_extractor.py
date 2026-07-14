@@ -31,3 +31,24 @@ def test_stub_still_extracts_kcal():
     assert cond.target_kcal == 400
     assert cond.kcal_mode == "upper"
     assert "저염" in cond.nutrition_goals
+
+
+# ── 이전 식사 반영 (기획서 시나리오 #3) ────────────────
+def test_heavy_previous_meal_triggers_low_sodium_light():
+    from app.services.condition_extractor import _apply_context_rules
+    from app.schemas import UserConditions
+
+    cond = _apply_context_rules(
+        UserConditions(previous_meal="떡볶이"), "점심에 떡볶이 먹었는데 저녁 추천"
+    )
+    assert "저염" in cond.nutrition_goals  # 짠 이전식사 → 저염 보완
+    assert cond.target_kcal == 500 and cond.kcal_mode == "upper"  # 가볍게
+
+
+def test_light_previous_meal_no_forced_balance():
+    from app.services.condition_extractor import _apply_context_rules
+    from app.schemas import UserConditions
+
+    # 샐러드처럼 가벼운 이전식사는 강제 보정 안 함
+    cond = _apply_context_rules(UserConditions(previous_meal="샐러드"), "샐러드 먹었는데 저녁")
+    assert cond.target_kcal is None

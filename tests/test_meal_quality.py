@@ -115,3 +115,11 @@ def test_condition_signal_overrides_need_more_info():
     # 진짜 조건 없는 것은 False
     assert not _has_condition_signal("뭐 먹지?")
     assert not _has_condition_signal("추천해줘")
+
+
+# ── 9. 국물 요청 시 조합에 국물이 포함됨 ────────────
+def test_soup_request_includes_soup():
+    cond = UserConditions(preferences=["얼큰한", "국물"], meal_style="백반")
+    mp = compose_meal(retrieve_foods(cond, UserProfile(), foods=load_foods()), cond, seed=0)
+    roles = [f.meal_role for f in mp.items]
+    assert "국물" in roles, f"국물 요청인데 국이 없음: {[f.food_name for f in mp.items]}"
