@@ -107,11 +107,24 @@ def _select_best(
 
 
 def _with_forced(items: list[FoodItem], forced: list[FoodItem]) -> list[FoodItem]:
-    """강제 포함 음식을 조합 맨 앞에 넣되 중복(food_id)은 제거한다."""
+    """강제 포함 음식을 조합 맨 앞에 넣되, 중복·역할 겹침을 막는다.
+
+    - food_id 중복 제거.
+    - forced에 '메인'(한그릇/밥)이 있으면, 조합의 다른 메인은 뺀다.
+      (예: '비빔밥'을 강제 포함했는데 함박볼밥까지 붙어 밥요리 2개가 되는 것 방지)
+    """
     if not forced:
         return items
     seen = {f.food_id for f in forced}
-    return forced + [x for x in items if x.food_id not in seen]
+    forced_has_main = any(f.meal_role in ("한그릇", "밥") for f in forced)
+    out = list(forced)
+    for x in items:
+        if x.food_id in seen:
+            continue
+        if forced_has_main and x.meal_role in ("한그릇", "밥"):
+            continue  # 메인 중복 방지 (곁들임 반찬·국만 추가)
+        out.append(x)
+    return out
 
 
 def _generate_combos(

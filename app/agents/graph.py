@@ -86,6 +86,44 @@ class GraphState(TypedDict, total=False):
     wanted_missing: list[str]  # 요청했으나 DB에 없는 음식명(안내용)
 
 
+# 되묻기(need_more_info)를 뒤집을 만한 '조건 신호어'. LLM이 흔들려도 코드가 보정한다.
+_CONDITION_SIGNALS = (
+    "kcal",
+    "칼로리",
+    "저염",
+    "나트륨",
+    "고단백",
+    "단백질",
+    "운동",
+    "헬스",
+    "담백",
+    "얼큰",
+    "칼칼",
+    "매운",
+    "가볍",
+    "든든",
+    "야채",
+    "채소",
+    "국",
+    "밥",
+    "반찬",
+    "찌개",
+    "한식",
+    "한상",
+    "백반",
+    "한그릇",
+    "면",
+    "다이어트",
+)
+
+
+def _has_condition_signal(message: str) -> bool:
+    """문장에 추천 조건 신호(맛·영양·형태·음식류·숫자)가 하나라도 있으면 True."""
+    if any(c.isdigit() for c in message):
+        return True
+    return any(w in message for w in _CONDITION_SIGNALS)
+
+
 def _flatten_candidates(candidates_by_role: dict[str, list[FoodItem]]) -> list[FoodItem]:
     return [food for foods in candidates_by_role.values() for food in foods]
 
@@ -224,6 +262,10 @@ def create_graph(
         # meal_recommend만 추천 파이프라인(extract~)으로, 나머지는 각 응답 노드로 종료
         intent = state.get("intent")
         if intent == "meal_recommend":
+            return "extract"
+        # 코드 안전망: LLM이 need_more_info로 흔들려도, 문장에 실제 조건 신호가 있으면
+        # 되묻지 말고 추천으로 진행한다(예: "국이랑 밥 있는 한식", "얼큰한 거").
+        if intent == "need_more_info" and _has_condition_signal(state.get("user_message", "")):
             return "extract"
         return intent or "extract"
 

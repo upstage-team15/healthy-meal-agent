@@ -11,9 +11,10 @@ from app.services.food_retriever import (
     effective_role,
     is_dessert,
     load_foods,
+    match_wanted_foods,
     retrieve_foods,
 )
-from app.services.meal_composer import compose_meal
+from app.services.meal_composer import _with_forced, compose_meal
 from app.services.nutrition_calculator import calculate_nutrition
 
 
@@ -75,3 +76,42 @@ def test_compose_produces_valid_plan_without_llm():
     assert mp.items
     total = calculate_nutrition(mp).total_kcal
     assert total <= 400  # 예산 준수
+
+
+# ── 6. 강제 포함(wanted) 메인이 있으면 조합에 메인 중복 안 됨 ────────────
+def test_forced_main_no_duplicate_main():
+    foods = {f.food_name: f for f in load_foods()}
+    bibim = next(f for n, f in foods.items() if "비빔밥" in n)  # 한그릇(재분류됨)
+    onebowl = next(
+        f for f in foods.values() if f.meal_role == "한그릇" and f.food_id != bibim.food_id
+    )
+    combo = _with_forced([onebowl], [bibim])
+    mains = [f for f in combo if f.meal_role in ("밥", "한그릇")]
+    assert len(mains) == 1, f"메인이 2개 이상: {[f.food_name for f in mains]}"
+
+
+# ── 7. 분류어(국/밥)는 wanted_foods 매칭에서 무시 ────────────
+def test_generic_words_ignored_in_wanted():
+    foods = load_foods()
+    matched, missing = match_wanted_foods(["국", "밥"], foods)
+    assert matched == {}  # 강제 포함 안 함
+    assert missing == []  # '없다' 안내도 안 함
+
+
+def test_real_dish_still_matches():
+    foods = load_foods()
+    matched, missing = match_wanted_foods(["김치찌개"], foods)
+    assert "김치찌개" in matched  # 진짜 음식명은 매칭
+    assert "김치찌개" in matched["김치찌개"].food_name
+
+
+# ── 8. 되묻기 안전망: 조건 신호 있으면 추천으로 ────────────
+def test_condition_signal_overrides_need_more_info():
+    from app.agents.graph import _has_condition_signal
+
+    assert _has_condition_signal("국이랑 밥 있는 한식")
+    assert _has_condition_signal("운동하는데 뭐먹지")
+    assert _has_condition_signal("400kcal 담백하게")
+    # 진짜 조건 없는 것은 False
+    assert not _has_condition_signal("뭐 먹지?")
+    assert not _has_condition_signal("추천해줘")

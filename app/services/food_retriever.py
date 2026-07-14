@@ -117,6 +117,23 @@ def effective_role(food_name: str, raw_role: str) -> str:
     return raw_role
 
 
+# 구체적 음식명이 아니라 '분류어'라서 wanted_foods로 강제 포함하면 안 되는 말들.
+# (LLM이 "국이랑 밥 있는 한식"에서 "국","밥"을 음식명으로 오인하는 것 방어)
+_GENERIC_FOOD_WORDS = {
+    "국",
+    "밥",
+    "반찬",
+    "찌개",
+    "면",
+    "국물",
+    "한식",
+    "한상",
+    "한정식",
+    "죽",
+    "탕",
+}
+
+
 def match_wanted_foods(wanted: list[str], foods: list["FoodItem"]) -> tuple[dict, list[str]]:
     """
     사용자가 원한 음식명(여러 개 가능)을 DB 음식과 부분일치로 매칭한다.
@@ -124,11 +141,14 @@ def match_wanted_foods(wanted: list[str], foods: list["FoodItem"]) -> tuple[dict
 
     예) "김치찌개" → "닭고기김치찌개" 매칭. "존재안함" → 미매칭 목록에 담김.
     한 원문에 여러 후보가 걸리면 이름이 가장 짧은(=가장 대표적인) 것을 고른다.
+    '국/밥' 같은 분류어는 특정 음식이 아니므로 매칭/미매칭 어디에도 넣지 않고 무시한다.
     """
     matched: dict[str, FoodItem] = {}
     missing: list[str] = []
     for term in wanted:
         key = term.replace(" ", "")
+        if key in _GENERIC_FOOD_WORDS:  # 분류어는 무시(강제 포함도, '없다' 안내도 안 함)
+            continue
         hits = [f for f in foods if key in f.food_name.replace(" ", "")]
         # 디저트는 한 끼 요청 매칭 대상에서 제외
         hits = [f for f in hits if not is_dessert(f.food_name)]
