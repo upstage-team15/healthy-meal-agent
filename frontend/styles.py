@@ -553,7 +553,6 @@ def inject_global_styles() -> None:
         }
 
         [data-testid="stChatInput"] {
-            position: relative !important;
             max-width: 820px;
             margin: 0 auto;
             padding: 0 !important;
@@ -592,6 +591,7 @@ def inject_global_styles() -> None:
 
         [data-testid="stChatInput"] > div,
         [data-testid="stChatInput"] > div:focus-within {
+            position: relative !important;
             padding: 0 !important;
             border: 0 !important;
             background: transparent !important;
@@ -695,6 +695,12 @@ def inject_global_styles() -> None:
             width: 100%;
             min-height: calc(100vh - 210px);
             padding-bottom: 128px;
+        }
+
+        .message-stream-spacer {
+            height: 152px;
+            min-height: 152px;
+            pointer-events: none;
         }
 
         .brand-row {
