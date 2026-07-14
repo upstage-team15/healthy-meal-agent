@@ -25,6 +25,7 @@ from chat_state import (  # noqa: E402
 from chat_view import (  # noqa: E402
     render_empty_state,
     render_message,
+    render_message_stream_spacer,
     render_suggestion_buttons,
     render_typing_indicator,
 )
@@ -94,6 +95,7 @@ else:
                 render_message(message)
             if pending_user_message:
                 render_typing_indicator()
+            render_message_stream_spacer()
     submitted_text, submitted_files = render_chat_composer(
         disabled=st.session_state.is_generating,
         pinned=True,

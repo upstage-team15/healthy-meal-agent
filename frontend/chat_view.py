@@ -119,6 +119,10 @@ def render_typing_indicator() -> None:
     )
 
 
+def render_message_stream_spacer() -> None:
+    st.html("""<div class="message-stream-spacer" aria-hidden="true"></div>""")
+
+
 def render_meal_card(agent_payload: dict | None) -> None:
     if not agent_payload:
         return
