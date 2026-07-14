@@ -13,6 +13,40 @@ from app.services.food_retriever import load_foods
 MIN_CANDIDATE_LEN = 2  # 이보다 짧은 조각은 너무 흔해서(예: 한 글자) 후보로 안 쓴다.
 MAX_CANDIDATES = 5
 
+# 음식명이 아닌 질문 표현. 문장 전체를 후보 탐색에 쓰면 이 단어들의 조각이
+# 무관한 음식명과 우연히 겹칠 수 있다(예: "칼로리얼마야"의 "리얼"이 "씨리얼"과 매칭).
+# 길이 내림차순으로 제거해야 "얼마나"를 통째로 지우고 "나"만 남기는 식으로 처리된다.
+QUERY_STOPWORDS = sorted(
+    [
+        "칼로리",
+        "나트륨",
+        "단백질",
+        "탄수화물",
+        "당류",
+        "지방",
+        "얼마나요",
+        "얼마나",
+        "얼마예요",
+        "얼마인가요",
+        "얼마야",
+        "얼마",
+        "몇인가요",
+        "몇이야",
+        "몇칼로리",
+        "몇",
+        "알려줘",
+        "알려주세요",
+        "궁금해요",
+        "궁금해",
+        "궁금합니다",
+        "뭐예요",
+        "뭔가요",
+        "뭐야",
+    ],
+    key=len,
+    reverse=True,
+)
+
 
 def _find_food(user_message: str, foods: list[FoodItem]) -> FoodItem | None:
     """문장에 음식명이 포함돼 있으면 가장 길게(구체적으로) 매칭되는 음식을 찾는다."""
@@ -24,14 +58,26 @@ def _find_food(user_message: str, foods: list[FoodItem]) -> FoodItem | None:
     return max(matches, key=lambda f: len(f.food_name))
 
 
+def _strip_query_words(text: str) -> str:
+    """영양 속성명·질문 표현을 지워 음식명으로 보이는 부분만 남긴다."""
+    for word in QUERY_STOPWORDS:
+        text = text.replace(word, "")
+    return text.strip("?!., ")
+
+
 def _find_candidates(user_message: str, foods: list[FoodItem]) -> list[FoodItem]:
     """정확히 일치하는 음식이 없을 때, 반대 방향(사용자가 말한 부분 문자열이
     DB 음식명 안에 포함되는지)으로 후보를 찾는다.
     예: "김치찌개"만 물었는데 DB엔 "닭고기김치찌개" 등 변형만 있는 경우 —
     가장 긴(구체적인) 부분 문자열에서 매칭이 나오는 즉시 그 결과를 쓴다.
+    질문 표현을 먼저 지워서, 남은 음식명 부분만 탐색 대상이 되게 한다
+    (그래야 "밥 칼로리 얼마야?"처럼 음식명 자체가 짧아도 정상 탐색된다).
     """
-    text = user_message.replace(" ", "")
-    for length in range(len(text), MIN_CANDIDATE_LEN - 1, -1):
+    text = _strip_query_words(user_message.replace(" ", ""))
+    if not text:
+        return []
+    lower_bound = min(MIN_CANDIDATE_LEN, len(text))
+    for length in range(len(text), lower_bound - 1, -1):
         found: list[FoodItem] = []
         seen_names: set[str] = set()
         for start in range(len(text) - length + 1):
