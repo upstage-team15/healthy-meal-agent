@@ -89,6 +89,17 @@ def test_nutrition_lookup_suggests_candidates_on_partial_match():
     assert "김치찌개" in answer  # 후보 음식명에 매칭 문자열이 포함돼야 함
 
 
+def test_nutrition_lookup_short_food_name_still_suggests_candidates():
+    """음식명이 한 글자("밥")뿐이어도 질문 표현을 떼어내고 후보를 찾아야 한다.
+    회귀 방지: "밥 칼로리 얼마야?"에서 "칼로리얼마야"의 "리얼" 조각이
+    무관한 "씨리얼"과 우연히 매칭돼 밥 후보 대신 씨리얼만 나오던 버그가 있었다."""
+    foods = food_retriever.load_foods()
+    answer = answer_nutrition_query("밥 칼로리 얼마야?", foods=foods)
+    assert "이 중 하나인가요" in answer
+    assert "씨리얼" not in answer
+    assert "밥" in answer
+
+
 # ── 3. 그래프 분기: intent별로 올바른 응답/경로 ──────────────────
 def _recommend_classifier(msg):
     return "meal_recommend"
