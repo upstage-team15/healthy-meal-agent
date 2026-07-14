@@ -24,15 +24,158 @@ CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "foods_samsam.csv"
 ROLES = ["밥", "국물", "반찬", "한그릇"]
 PER_ROLE = 20  # 역할별로 가져올 후보 수
 
+# 맛 키워드("칼칼한")를 의미검색에 쓰지 않는 역할.
+# 밥은 맛이 아니라 '탄수화물 담당'이라 맛 벡터를 적용하면 노이즈만 된다(유사도 0.25 수준).
+# → 밥은 중립 쿼리로 검색해 어울리는 기본 밥류를 뽑는다.
+_FLAVOR_NEUTRAL_ROLES = {"밥"}
+_NEUTRAL_QUERY = "밥"
+
 # 저염("저염" nutrition_goal) 요청 시 개별 음식에 적용할 나트륨 상한(mg).
 # 한 끼 총합 KDRI 기준은 767mg/끼(validator와 동일). 한 끼가 밥+국+반찬으로 나뉘므로
 # 개별 음식엔 보수적 상한을 둬 젓갈·장아찌 등 고나트륨 음식을 사실 축에서 배제한다.
 LOW_SODIUM_MAX = 400.0
 
+# 디저트·빵·후식류: 한 끼 메인/반찬으로는 부적절하므로 추천 후보에서 제외한다.
+# ('간식/기타' 역할은 애초에 ROLES에 없어 빠지지만, 한그릇·반찬에 섞인 것도 걸러낸다.)
+_DESSERT_KEYWORDS = (
+    "빵",
+    "케익",
+    "케이크",
+    "파르페",
+    "샌드위치",
+    "쿠키",
+    "머핀",
+    "타르트",
+    "파이",
+    "스콘",
+    "와플",
+    "도넛",
+    "화채",
+    "무스",
+    "마카롱",
+    "카스텔라",
+    "스무디",
+    "파운드",
+    "찰빵",
+    "공갈빵",
+    "식빵",
+    "펀치",
+)
+
+
+def is_dessert(food_name: str) -> bool:
+    """이름에 디저트/빵 키워드가 있으면 True (한 끼 후보에서 제외 대상)."""
+    return any(k in food_name for k in _DESSERT_KEYWORDS)
+
+
+# '밥' 역할로 분류돼 있지만 실제로는 그 자체로 완성된 한 그릇인 것들.
+# (볶음밥·덮밥·죽·김밥·초밥·주먹밥·리조또·카레·쌈밥·버거 등)
+# 백반의 '밥' 자리에 들어가면 국·반찬이 덧붙어 과해지므로 '한그릇' 역할로 재분류한다.
+_COMPLETE_RICE_KEYWORDS = (
+    "볶음밥",
+    "덮밥",
+    "비빔밥",
+    "리조또",
+    "리소토",
+    "롤",
+    "볼 밥",
+    "볼밥",
+    "주먹밥",
+    "쌈밥",
+    "컵밥",
+    "카레",
+    "필라프",
+    "파에야",
+    "죽",
+    "김밥",
+    "초밥",
+    "스시",
+    "핫도그",
+    "약식",
+    "유부",
+    "오므라이스",
+    "크로켓",
+    "버거",
+    "밥스틱",
+    "그라탕",
+    "미음",
+    "무른밥",
+    "튀밥",
+    "범벅",
+    "강정",
+)
+
+
+def effective_role(food_name: str, raw_role: str) -> str:
+    """데이터의 원래 역할을 실제 식사 구성에 맞게 보정한다.
+
+    핵심: '밥' 역할이지만 볶음밥·덮밥처럼 완성된 한 그릇이면 '한그릇'으로 바꾼다.
+    (원본 데이터의 역할 분류가 부정확한 것을 런타임에서 교정 — 파일은 안 건드림)
+    """
+    if raw_role == "밥" and any(k in food_name for k in _COMPLETE_RICE_KEYWORDS):
+        return "한그릇"
+    return raw_role
+
+
+# 구체적 음식명이 아니라 '분류어'라서 wanted_foods로 강제 포함하면 안 되는 말들.
+# (LLM이 "국이랑 밥 있는 한식"에서 "국","밥"을 음식명으로 오인하는 것 방어)
+_GENERIC_FOOD_WORDS = {
+    "국",
+    "밥",
+    "반찬",
+    "찌개",
+    "면",
+    "국물",
+    "한식",
+    "한상",
+    "한정식",
+    "죽",
+    "탕",
+}
+
+
+def match_wanted_foods(wanted: list[str], foods: list["FoodItem"]) -> tuple[dict, list[str]]:
+    """
+    사용자가 원한 음식명(여러 개 가능)을 DB 음식과 부분일치로 매칭한다.
+    반환: ({원문: 매칭된 FoodItem}, [DB에 없는 원문들])
+
+    예) "김치찌개" → "닭고기김치찌개" 매칭. "존재안함" → 미매칭 목록에 담김.
+    한 원문에 여러 후보가 걸리면 이름이 가장 짧은(=가장 대표적인) 것을 고른다.
+    '국/밥' 같은 분류어는 특정 음식이 아니므로 매칭/미매칭 어디에도 넣지 않고 무시한다.
+    """
+    matched: dict[str, FoodItem] = {}
+    missing: list[str] = []
+    for term in wanted:
+        key = term.replace(" ", "")
+        if key in _GENERIC_FOOD_WORDS:  # 분류어는 무시(강제 포함도, '없다' 안내도 안 함)
+            continue
+        hits = [f for f in foods if key in f.food_name.replace(" ", "")]
+        # 디저트는 한 끼 요청 매칭 대상에서 제외
+        hits = [f for f in hits if not is_dessert(f.food_name)]
+        if hits:
+            matched[term] = min(hits, key=lambda f: len(f.food_name))
+        else:
+            missing.append(term)
+    return matched, missing
+
 
 def _wants_low_sodium(conditions) -> bool:
     """LLM/폴백이 정규화한 nutrition_goals에 '저염' 태그가 있는지."""
     return "저염" in (conditions.nutrition_goals or [])
+
+
+def _search_max_kcal(conditions, relax: bool):
+    """1차 검색의 kcal 상한. target('정도') 모드면 여유(+tolerance)를 둬 밥류가
+    초과로 원천 필터링되는 것을 막는다. upper('이하')는 여유 없이 그대로(안전축).
+    relax(재검색) 시에는 상한 없음.
+    """
+    from app.services.validator import TARGET_KCAL_TOLERANCE
+
+    if not conditions.target_kcal or relax:
+        return None
+    if conditions.kcal_mode == "target":
+        return conditions.target_kcal * (1 + TARGET_KCAL_TOLERANCE)
+    return conditions.target_kcal  # upper 또는 mode 미상은 그대로
 
 
 _FOODS_CACHE: list[FoodItem] | None = None
@@ -99,7 +242,7 @@ def load_foods() -> list[FoodItem]:
         FoodItem(
             food_id=int(row["food_id"]),
             food_name=str(row["food_name"]),
-            meal_role=str(row["meal_role"]),
+            meal_role=effective_role(str(row["food_name"]), str(row["meal_role"])),
             serving_size=_opt_float(row["serving_size"]),
             kcal=float(row["kcal"]),
             carbohydrate=float(row["carbohydrate"]),
@@ -135,7 +278,7 @@ def _row_to_food(r: dict) -> FoodItem:
     return FoodItem(
         food_id=int(r["food_id"]),
         food_name=str(r["food_name"]),
-        meal_role=str(r["meal_role"]),
+        meal_role=effective_role(str(r["food_name"]), str(r["meal_role"])),
         serving_size=_opt_float(r.get("serving_size")),
         kcal=float(r["kcal"]),
         carbohydrate=float(r["carbohydrate"]),
@@ -157,16 +300,19 @@ def _retrieve_supabase(conditions, profile, relax: bool) -> dict:
 
     client = get_client()
     query_vec = embed_query(build_search_query(conditions))
+    # 밥처럼 맛과 무관한 역할은 중립 쿼리 벡터로 검색(맛 노이즈 제거). 필요할 때만 임베딩.
+    neutral_vec = embed_query(_NEUTRAL_QUERY) if _FLAVOR_NEUTRAL_ROLES else query_vec
 
     excluded = [x for x in (list(profile.allergies) + list(conditions.exclude_foods)) if x]
-    max_kcal = conditions.target_kcal if (conditions.target_kcal and not relax) else None
+    max_kcal = _search_max_kcal(conditions, relax)
     # 저염 요청이면 나트륨 상한을 사실 축(DB 필터)으로 전달. relax(재검색) 시에는 완화.
     max_sodium = LOW_SODIUM_MAX if (_wants_low_sodium(conditions) and not relax) else None
 
     result: dict[str, list[FoodItem]] = {role: [] for role in ROLES}
     for role in ROLES:
+        role_vec = neutral_vec if role in _FLAVOR_NEUTRAL_ROLES else query_vec
         params = {
-            "query_embedding": query_vec,
+            "query_embedding": role_vec,
             "match_count": PER_ROLE,
             "role_filter": [role],
             "excluded_terms": excluded,
@@ -176,7 +322,14 @@ def _retrieve_supabase(conditions, profile, relax: bool) -> dict:
         if max_sodium is not None:
             params["max_sodium"] = max_sodium
         rows = client.rpc("match_foods", params).execute().data or []
-        result[role] = [_row_to_food(r) for r in rows]
+        for r in rows:
+            name = str(r["food_name"])
+            if is_dessert(name):  # 디저트/빵류 제외
+                continue
+            food = _row_to_food(r)
+            # 완성밥요리는 '밥'으로 검색됐어도 실제 역할(한그릇) 버킷에 담는다
+            if food.meal_role in result:
+                result[food.meal_role].append(food)
     return result
 
 
@@ -185,12 +338,14 @@ def _retrieve_csv(conditions, profile, foods, relax: bool) -> dict:
     if foods is None:
         foods = load_foods()
     excluded = [x for x in (list(profile.allergies) + list(conditions.exclude_foods)) if x]
-    max_kcal = conditions.target_kcal if (conditions.target_kcal and not relax) else None
+    max_kcal = _search_max_kcal(conditions, relax)
     max_sodium = LOW_SODIUM_MAX if (_wants_low_sodium(conditions) and not relax) else None
 
     result: dict[str, list[FoodItem]] = {role: [] for role in ROLES}
     for food in foods:
         if food.meal_role not in ROLES:  # 기타 제외
+            continue
+        if is_dessert(food.food_name):  # 디저트/빵류 제외
             continue
         if any(x in food.food_name for x in excluded):
             continue

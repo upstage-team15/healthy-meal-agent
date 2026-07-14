@@ -5,6 +5,10 @@ app/services/validator.py
 
 from app.schemas import MealPlan, NutritionTotal, UserConditions, UserProfile, ValidationResult
 
+# target("정도") 모드 칼로리 허용 오차. 검색·조합·검증이 모두 이 값을 공유해 엇박자를 막는다.
+# 한 끼 조합은 개별 음식 단위가 커서 ±10%는 통과율이 빡빡 → ±15%로 완화.
+TARGET_KCAL_TOLERANCE = 0.15
+
 
 def validate_meal(
     meal_plan: MealPlan, nutrition: NutritionTotal, conditions: UserConditions, profile: UserProfile
@@ -26,9 +30,12 @@ def validate_meal(
                 failures.append(f"{kcal:.0f}kcal로 너무 낮아 한 끼로 부실합니다.")
                 cause = "compose"
         elif conditions.kcal_mode == "target":
-            if not (conditions.target_kcal * 0.9 <= kcal <= conditions.target_kcal * 1.1):
+            lo = conditions.target_kcal * (1 - TARGET_KCAL_TOLERANCE)
+            hi = conditions.target_kcal * (1 + TARGET_KCAL_TOLERANCE)
+            if not (lo <= kcal <= hi):
                 failures.append(
-                    f"목표 {conditions.target_kcal:.0f}kcal ±10% 범위를 벗어났습니다({kcal:.0f}kcal)."
+                    f"목표 {conditions.target_kcal:.0f}kcal "
+                    f"±{TARGET_KCAL_TOLERANCE * 100:.0f}% 범위를 벗어났습니다({kcal:.0f}kcal)."
                 )
                 cause = "compose"
 

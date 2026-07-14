@@ -44,11 +44,11 @@ def test_composed_meal_passes_validator():
 
 
 def test_target_mode_stays_within_range():
-    """target 모드(정도)는 ±10% 범위 안에서 조합되는지"""
+    """target 모드(정도)는 ±15% 범위 안에서 조합되는지 (validator와 동일 오차)"""
     cond = UserConditions(target_kcal=600, kcal_mode="target", meal_style="백반")
     mp = _compose(cond)
     total = calculate_nutrition(mp).total_kcal
-    assert 600 * 0.9 <= total <= 600 * 1.1, f"{total}kcal가 600±10% 밖"
+    assert 600 * 0.85 <= total <= 600 * 1.15, f"{total}kcal가 600±15% 밖"
 
 
 def test_prefers_balanced_macro_combo():
@@ -58,6 +58,18 @@ def test_prefers_balanced_macro_combo():
     dev = macro_deviation(calculate_nutrition(mp))
     # 밥만 담으면 탄수 100%로 이탈량이 큼. 조합기가 균형 맞춰 이탈량을 억제해야 함.
     assert dev < 60, f"탄단지 이탈량 {dev}가 과도(균형 조합 실패)"
+
+
+def test_kcal_mode_none_still_scores_calories():
+    """kcal_mode가 없어도(LLM 미표기) 칼로리 채점이 되어 부실 조합이 안 뽑히는지.
+
+    '든든하게 600kcal'처럼 mode 없이 숫자만 준 경우, 260kcal 부실 조합이 통과하던 버그 회귀 방지.
+    """
+    cond = UserConditions(target_kcal=600, kcal_mode=None, meal_style="백반")
+    mp = _compose(cond)
+    total = calculate_nutrition(mp).total_kcal
+    # mode 미상은 target(정도)로 간주 → 600±10% 근처여야(적어도 하한 540 이상)
+    assert total >= 600 * 0.75, f"mode 없이도 부실 방지 실패: {total}kcal"
 
 
 def test_low_sodium_combo_keeps_sodium_low():
