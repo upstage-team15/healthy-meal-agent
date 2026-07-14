@@ -32,11 +32,22 @@ def build_agent_payload(api_response: dict) -> dict | None:
     }
 
 
-def run_recommendation(user_text: str) -> tuple[str, dict | None]:
+def run_recommendation(
+    user_text: str,
+    allergies: list[str] | None = None,
+    thread_id: str | None = None,
+) -> tuple[str, dict | None]:
+    """추천 요청. 알레르기(프로필)와 thread_id(멀티턴 대화 식별자)를 함께 전달한다."""
+    payload: dict = {
+        "message": user_text,
+        "profile": {"allergies": allergies or []},
+    }
+    if thread_id:
+        payload["thread_id"] = thread_id
     try:
         response = httpx.post(
             CHAT_SYNC_URL,
-            json={"message": user_text, "profile": {}},
+            json=payload,
             timeout=45,
         )
         response.raise_for_status()

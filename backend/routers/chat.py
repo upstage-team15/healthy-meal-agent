@@ -24,15 +24,22 @@ router = APIRouter(prefix="/api/v1", tags=["chat"])
 
 
 def _to_response(state: AgentState) -> ChatResponse:
-    """run_agent가 돌려준 AgentState를 프론트가 쓰기 좋은 형태로 평평하게 변환."""
+    """run_agent가 돌려준 AgentState를 프론트가 쓰기 좋은 형태로 평평하게 변환.
+
+    검증에 최종 실패(FAIL)한 식단은 사용자에게 카드로 노출하지 않는다.
+    (기획 원칙: FAIL 식단 대신 정직한 안내 문구만 보여준다. 알레르기 유발 음식이
+    화면에 뜨는 것도 이 지점에서 함께 차단된다.)
+    """
     mp = state.meal_plan
     vr = state.validation_result
+    failed = vr is not None and vr.status == "FAIL"
+    show_meal = mp is not None and not failed
     return ChatResponse(
         intent=state.intent,
-        meal_type=mp.meal_type if mp else None,
-        items=mp.items if mp else [],
-        nutrition=state.nutrition_total,
-        reason=mp.reason if mp else "",
+        meal_type=mp.meal_type if show_meal else None,
+        items=mp.items if show_meal else [],
+        nutrition=state.nutrition_total if show_meal else None,
+        reason=mp.reason if show_meal else "",
         status=vr.status if vr else None,
         warnings=vr.warnings if vr else [],
         final_response=state.final_response,
@@ -48,6 +55,7 @@ def _run(req: ChatRequest) -> AgentState:
         profile=profile,
         extractor=extract_conditions_llm,
         classifier=classify_intent_llm,
+        thread_id=req.thread_id,  # 있으면 멀티턴(되묻기→이어받기), 없으면 무상태
     )
 
 
