@@ -32,6 +32,11 @@ _MEAL_HINTS = ("한 끼", "한끼", "끼", "점심", "저녁", "아침", "브런
 _DAILY_KCAL_DANGER = 1000
 # 맥락(하루/끼)이 아예 없을 때, 이 값 이하는 하루 총량으로 해석해 위험으로 본다.
 _ABSOLUTE_KCAL_DANGER = 250
+# 한 끼로 이 값을 초과하면 과다 섭취(폭식성) → risky. 든든한 백반(800~900)은 넉넉히 통과.
+# '하루' 맥락에서는 적용하지 않는다("하루 3000kcal"는 정상일 수 있음).
+_MEAL_KCAL_DANGER_HIGH = 1500
+# 정상 한 끼로 인정하는 하한 — 이 값 이상이면 LLM이 risky로 흔들려도 정상 추천으로 보정.
+_MEAL_KCAL_SAFE_LOW = 300
 
 
 def _extract_kcal_values(text: str) -> list[int]:
@@ -73,6 +78,42 @@ def is_extreme_low_calorie(user_message: str) -> bool:
     return False
 
 
+def is_extreme_high_calorie(user_message: str) -> bool:
+    """
+    한 끼로 과다한 고칼로리 요청인지 코드로 판정(위험 가드레일, 상한).
+
+    - '하루/일일' 맥락이면 적용하지 않는다("하루 3000kcal"는 정상일 수 있음).
+    - 그 외(끼 맥락 또는 맥락 없음)에서 1500kcal를 초과하면 한 끼 과다 → 위험.
+
+    예) "2000kcal 벌크업 한 끼" → 위험 / "800kcal 든든한 백반" → 정상 / "하루 3000kcal" → 정상
+    """
+    kcals = _extract_kcal_values(user_message)
+    if not kcals:
+        return False
+    if any(h in user_message for h in _DAILY_HINTS):
+        return False  # 하루 총량 요구는 상한 가드 대상 아님
+    return max(kcals) > _MEAL_KCAL_DANGER_HIGH
+
+
+def looks_like_normal_meal_calorie(user_message: str) -> bool:
+    """정상 범위의 한 끼 요청으로 보이는지.
+
+    LLM 분류기가 "800kcal 든든한 백반" 같은 정상 요청을 risky로 흔들 때, 이 신호로 보정한다.
+    '하루' 맥락이면 대상 아니고, 상한(1500)을 넘어도 아니다.
+    하한은 끼 맥락이 명시되면 250까지 완화한다(is_extreme_low_calorie의 끼-맥락 규칙과 일관).
+    """
+    kcals = _extract_kcal_values(user_message)
+    if not kcals:
+        return False
+    if any(h in user_message for h in _DAILY_HINTS):
+        return False
+    # 끼 맥락이 명시되면 낮은 값도 정상 한 끼로 본다(is_extreme_low_calorie와 동일 규칙).
+    # 끼 맥락이 없으면 300 이상만 정상으로 인정.
+    has_meal = any(h in user_message for h in _MEAL_HINTS)
+    low_bound = 0 if has_meal else _MEAL_KCAL_SAFE_LOW
+    return all(low_bound <= k <= _MEAL_KCAL_DANGER_HIGH for k in kcals)
+
+
 VALID_INTENTS = {
     "meal_recommend",
     "nutrition_query",
@@ -104,8 +145,8 @@ INTENT_PROMPT = """당신은 건강한 한 끼 식단 추천 서비스의 요청
 
 def classify_intent_llm(user_message: str) -> IntentType:
     """Solar로 의도 분류. 실패 시 stub 폴백."""
-    # 코드 안전망 먼저: 극단적 저칼로리는 LLM 판단과 무관하게 결정론적으로 차단.
-    if is_extreme_low_calorie(user_message):
+    # 코드 안전망 먼저: 극단 칼로리(저·고)는 LLM 판단과 무관하게 결정론적으로 차단.
+    if is_extreme_low_calorie(user_message) or is_extreme_high_calorie(user_message):
         return "risky"
     try:
         from app.services.llm_client import complete
@@ -122,6 +163,10 @@ def classify_intent_llm(user_message: str) -> IntentType:
         # 라벨이 문장 어딘가에 섞여 나와도 뽑아낸다
         for intent in VALID_INTENTS:
             if intent in raw:
+                # LLM이 정상 한 끼(300~1500kcal)를 risky로 잘못 판단하면 추천으로 보정.
+                # (예: "800kcal 든든한 백반"이 간혹 risky로 흔들림)
+                if intent == "risky" and looks_like_normal_meal_calorie(user_message):
+                    return "meal_recommend"
                 return intent  # type: ignore[return-value]
         # 못 알아들으면 추천으로 (가장 흔한 경로)
         return "meal_recommend"
@@ -152,8 +197,8 @@ def classify_intent_stub(user_message: str) -> IntentType:
     text = user_message.strip()
     low = text.replace(" ", "")
 
-    # 극단 저칼로리(하루 단위 등) 코드 안전망 — LLM 없이도 동일하게 차단
-    if is_extreme_low_calorie(text):
+    # 극단 칼로리(저·고) 코드 안전망 — LLM 없이도 동일하게 차단
+    if is_extreme_low_calorie(text) or is_extreme_high_calorie(text):
         return "risky"
 
     if any(h in text for h in _RISKY_HINTS):
