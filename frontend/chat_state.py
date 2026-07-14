@@ -41,8 +41,13 @@ def get_active_conversation() -> dict:
 
 
 def create_new_chat() -> None:
+    """새 채팅 시작. 대화는 항상 하나만 유지한다(기존 대화는 지운다).
+
+    로그인/장기기억이 없는 MVP라 여러 대화를 쌓아두지 않는다. '새 채팅'은
+    깨끗한 새 상담으로 리셋하는 동작. 알레르기 프로필(user_allergies)은 전역이라 유지된다.
+    """
     conversation = new_conversation()
-    st.session_state.conversations.insert(0, conversation)
+    st.session_state.conversations = [conversation]
     st.session_state.active_conversation_id = conversation["id"]
 
 

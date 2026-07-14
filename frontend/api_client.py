@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import os
+from collections.abc import Iterator
 
 import httpx
 
 
 API_BASE_URL = os.getenv("HEALTHY_MEAL_API_URL", "http://127.0.0.1:8000").rstrip("/")
 CHAT_SYNC_URL = f"{API_BASE_URL}/api/v1/chat/sync"
+CHAT_STREAM_URL = f"{API_BASE_URL}/api/v1/chat"
 
 
 def build_agent_payload(api_response: dict) -> dict | None:
@@ -30,6 +33,55 @@ def build_agent_payload(api_response: dict) -> dict | None:
         "retry_count": api_response.get("retry_count", 0),
         "intent": api_response.get("intent"),
     }
+
+
+def stream_recommendation(
+    user_text: str,
+    allergies: list[str] | None = None,
+    thread_id: str | None = None,
+) -> Iterator[tuple[str, object]]:
+    """SSE로 추천 진행 상황을 실시간 수신한다.
+
+    yield 형태:
+      ("progress", "건강 조건을 분석하고 있어요…")  # 단계별 진행 문구
+      ("result", (content:str, agent_payload:dict|None))  # 최종 결과 1회
+      ("error", "에러 메시지")
+
+    연결 실패 등은 ("error", ...)로 넘겨 호출부(app.py)가 말풍선으로 안내한다.
+    """
+    payload: dict = {"message": user_text, "profile": {"allergies": allergies or []}}
+    if thread_id:
+        payload["thread_id"] = thread_id
+    try:
+        with httpx.stream("POST", CHAT_STREAM_URL, json=payload, timeout=60) as resp:
+            resp.raise_for_status()
+            event = None
+            for line in resp.iter_lines():
+                if not line:
+                    event = None  # 빈 줄 = 프레임 경계
+                    continue
+                if line.startswith("event:"):
+                    event = line[len("event:") :].strip()
+                elif line.startswith("data:"):
+                    data = json.loads(line[len("data:") :].strip())
+                    if event == "status":
+                        yield ("progress", data.get("message", ""))
+                    elif event == "result":
+                        content = data.get("final_response") or (
+                            "조건을 조금 더 알려주시면 식단을 다시 맞춰볼게요."
+                        )
+                        yield ("result", (content, build_agent_payload(data)))
+                    elif event == "error":
+                        yield ("error", data.get("message", "추천 중 오류가 발생했어요."))
+    except httpx.ConnectError:
+        yield (
+            "error",
+            "API 서버에 연결할 수 없어요.\n\n"
+            "백엔드를 먼저 실행해 주세요: "
+            "`uv run uvicorn backend.main:app --reload --port 8000`",
+        )
+    except Exception as exc:
+        yield ("error", f"추천 요청 중 오류가 발생했어요.\n\n```text\n{exc}\n```")
 
 
 def run_recommendation(

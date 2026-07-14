@@ -68,6 +68,16 @@ def is_dessert(food_name: str) -> bool:
     return any(k in food_name for k in _DESSERT_KEYWORDS)
 
 
+def contains_excluded(food: FoodItem, excluded: list[str]) -> bool:
+    """알레르기·제외 재료가 음식에 들어있는지 — 이름뿐 아니라 '재료'까지 검사한다.
+
+    이름만 보면 '양배추감자전'(반죽에 계란)처럼 이름에 안 드러난 알레르겐을 놓친다.
+    알레르기는 안전 문제라 ingredients 원문까지 함께 본다.
+    """
+    haystack = f"{food.food_name} {food.ingredients or ''}"
+    return any(x and x in haystack for x in excluded)
+
+
 # '밥' 역할로 분류돼 있지만 실제로는 그 자체로 완성된 한 그릇인 것들.
 # (볶음밥·덮밥·죽·김밥·초밥·주먹밥·리조또·카레·쌈밥·버거 등)
 # 백반의 '밥' 자리에 들어가면 국·반찬이 덧붙어 과해지므로 '한그릇' 역할로 재분류한다.
@@ -327,6 +337,10 @@ def _retrieve_supabase(conditions, profile, relax: bool) -> dict:
             if is_dessert(name):  # 디저트/빵류 제외
                 continue
             food = _row_to_food(r)
+            # 알레르기·제외 재료를 '재료'까지 검사해 한 번 더 거른다(SQL은 이름만 봄).
+            # 이름에 안 드러난 알레르겐('양배추감자전' 반죽의 계란 등)을 확실히 차단.
+            if contains_excluded(food, excluded):
+                continue
             # 완성밥요리는 '밥'으로 검색됐어도 실제 역할(한그릇) 버킷에 담는다
             if food.meal_role in result:
                 result[food.meal_role].append(food)
@@ -347,7 +361,7 @@ def _retrieve_csv(conditions, profile, foods, relax: bool) -> dict:
             continue
         if is_dessert(food.food_name):  # 디저트/빵류 제외
             continue
-        if any(x in food.food_name for x in excluded):
+        if contains_excluded(food, excluded):  # 알레르기·제외 재료(이름+재료) 제외
             continue
         if max_kcal and food.kcal > max_kcal:
             continue

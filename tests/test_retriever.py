@@ -5,9 +5,44 @@ retriever 테스트. 외부(Supabase/Upstage) 의존 없이 돈다.
   - Supabase 경로: RPC/embedding을 mock해서 파라미터·변환만 검증.
 """
 
-from app.schemas import UserConditions, UserProfile
+from app.schemas import FoodItem, UserConditions, UserProfile
 from app.services import food_retriever
-from app.services.food_retriever import build_search_query, load_foods, retrieve_foods
+from app.services.food_retriever import (
+    build_search_query,
+    contains_excluded,
+    load_foods,
+    retrieve_foods,
+)
+
+
+def _mk(name, ingredients=""):
+    return FoodItem(
+        food_id=abs(hash(name)) % 100000,
+        food_name=name,
+        meal_role="반찬",
+        kcal=100,
+        carbohydrate=10,
+        protein=5,
+        fat=3,
+        sodium=100,
+        ingredients=ingredients,
+    )
+
+
+def test_contains_excluded_checks_name_and_ingredients():
+    """알레르겐이 이름에 있든(계란찜) 재료에만 있든(양배추감자전) 둘 다 잡는다."""
+    assert contains_excluded(_mk("계란찜"), ["계란"]) is True
+    assert contains_excluded(_mk("양배추감자전", "감자, 양배추, 계란 1개"), ["계란"]) is True
+    assert contains_excluded(_mk("시금치나물", "시금치, 참기름"), ["계란"]) is False
+
+
+def test_ingredient_allergen_filtered_from_csv_candidates():
+    """재료에 알레르겐이 든 음식은 CSV 검색 후보에서 제외된다(이름엔 안 드러나도)."""
+    prof = UserProfile(allergies=["계란", "달걀"])
+    result = retrieve_foods(UserConditions(), prof, foods=load_foods())
+    candidates = [f for role in result.values() for f in role]
+    leaked = [f.food_name for f in candidates if contains_excluded(f, ["계란", "달걀"])]
+    assert not leaked, f"재료에 계란 든 음식이 후보에 샘: {leaked}"
 
 
 def test_load_foods():

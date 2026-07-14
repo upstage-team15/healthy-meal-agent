@@ -946,17 +946,19 @@ def inject_global_styles() -> None:
             justify-content: space-between;
             align-items: center;
             gap: 12px;
-            margin-bottom: 14px;
+            margin-bottom: 16px;
         }
 
         .meal-card-title strong {
             color: var(--text);
-            font-size: 17px;
+            font-size: 16px;
+            font-weight: 850;
             line-height: 1.25;
+            letter-spacing: -0.01em;
         }
 
         .status-pill {
-            padding: 6px 10px;
+            padding: 5px 11px;
             border-radius: 999px;
             font-size: 12px;
             font-weight: 850;
@@ -974,65 +976,370 @@ def inject_global_styles() -> None:
             background: var(--danger-bg);
         }
 
-        .nutrition-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 10px;
-            margin-bottom: 14px;
-        }
-
-        .nutrition-item {
-            padding: 12px;
-            border-radius: var(--radius-sm);
-            background: var(--surface-muted);
-        }
-
-        .nutrition-label {
-            color: var(--muted);
-            font-size: 12px;
-            font-weight: 750;
-        }
-
-        .nutrition-value {
-            margin-top: 4px;
-            color: var(--text);
-            font-size: 18px;
-            font-weight: 850;
-            line-height: 1.2;
-        }
-
+        /* ── 음식 목록(주인공): 역할 뱃지 + 큰 음식명 / 작은 수치 ── */
         .food-list {
-            display: grid;
-            gap: 8px;
-            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
 
         .food-row {
             display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 11px 0;
-            border-top: 1px solid var(--line);
+            align-items: center;
+            gap: 11px;
+            padding: 14px 4px;
+            border-bottom: 1px solid var(--line);
             color: var(--text);
-            font-size: 14px;
-            line-height: 1.45;
+            line-height: 1.35;
         }
 
-        .food-row span:last-child {
+        .food-row:last-child {
+            border-bottom: 0;
+        }
+
+        .food-name {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-size: 17px;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+            color: var(--text);
+        }
+
+        .food-figures {
             flex: 0 0 auto;
             color: var(--muted);
+            font-size: 12.5px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .food-figures em {
+            font-style: normal;
+            font-size: 0.82em;
+            font-weight: 700;
+            color: var(--muted-2);
+            margin-left: 1px;
+        }
+
+        .role-badge {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
+            padding: 5px 9px;
+            border-radius: 9px;
+            font-size: 12px;
+            font-weight: 850;
+            line-height: 1;
+        }
+
+        /* ── 영양 근거 띠(보조): 음식 아래, 총 열량 + 탄단지·나트륨 ── */
+        .nutri-strip {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-top: 14px;
+            padding: 14px 16px;
+            border-radius: var(--radius-md);
+            background: var(--surface-muted);
+        }
+
+        .nutri-total {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: baseline;
+            gap: 3px;
+            padding-right: 16px;
+            border-right: 1px solid var(--line-strong);
+        }
+
+        .nutri-total-num {
+            font-size: 22px;
+            font-weight: 880;
+            line-height: 1;
+            letter-spacing: -0.02em;
+            color: var(--teal-ink);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .nutri-total-unit {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .nutri-macros {
+            flex: 1 1 auto;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .macro-chip {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .macro-label {
+            color: var(--muted);
+            font-size: 11px;
             font-weight: 750;
         }
 
+        .macro-value {
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 850;
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .macro-value em {
+            font-style: normal;
+            font-size: 0.72em;
+            font-weight: 700;
+            color: var(--muted-2);
+            margin-left: 1px;
+        }
+
+        .role-rice  { color: #8a6d2b; background: #fbf1d9; }
+        .role-soup  { color: #2f6d8a; background: #dcf0f7; }
+        .role-side  { color: #3f7a4a; background: #e0f2e4; }
+        .role-bowl  { color: var(--teal-ink); background: var(--accent-soft); }
+        .role-snack { color: #8a5a2f; background: #f7ead9; }
+        .role-etc   { color: var(--muted); background: var(--surface-muted); }
+
+        /* ── 경고: 카드 안 하단, 부드러운 노란 박스 ── */
         .warning-list {
-            margin-top: 12px;
-            padding: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 9px;
+            margin-top: 14px;
+            padding: 12px 14px;
             border-radius: var(--radius-sm);
             background: var(--warning-bg);
+        }
+
+        .warning-cap {
+            flex: 0 0 auto;
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: var(--warning);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 850;
+            line-height: 1.5;
+        }
+
+        .warning-list ul {
+            margin: 1px 0 0;
+            padding-left: 2px;
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
             color: var(--warning);
             font-size: 13px;
             font-weight: 700;
+            line-height: 1.5;
+        }
+
+        /* ── 레시피 섹션 ────────────────────────────── */
+        /* 카드와 같은 폭으로 정렬해 '카드에 이어지는 영역'처럼 보이게 한다. */
+        [class*="st-key-recipe-wrap"] {
+            width: min(78%, 760px);
+        }
+
+        .recipe-section-label {
+            margin: 2px 0 6px 2px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+        }
+
+        /* Streamlit expander를 민트 톤 카드로 커스텀 */
+        [class*="st-key-recipe-wrap"] [data-testid="stExpander"] {
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+
+        [class*="st-key-recipe-wrap"] [data-testid="stExpander"] details {
+            border: 0 !important;
+            background: transparent !important;
+        }
+
+        [class*="st-key-recipe-wrap"] [data-testid="stExpander"] summary {
+            padding: 12px 16px !important;
+            font-size: 14px;
+            font-weight: 750;
+            color: var(--text);
+            border-radius: var(--radius-md);
+            transition: background 140ms ease;
+        }
+
+        [class*="st-key-recipe-wrap"] [data-testid="stExpander"] summary:hover {
+            background: var(--accent-soft);
+        }
+
+        [class*="st-key-recipe-wrap"] [data-testid="stExpander"] summary svg {
+            color: var(--accent);
+        }
+
+        [class*="st-key-recipe-wrap"] [data-testid="stExpanderDetails"] {
+            padding: 4px 16px 16px;
+        }
+
+        /* expander 내부 전체를 하나의 흐름으로 — 블록 간 간격을 gap으로 통일 */
+        .recipe-body {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding-top: 4px;
+        }
+
+        .recipe-block {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .recipe-block-label {
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 850;
+            letter-spacing: 0.02em;
+            margin-bottom: 8px;
+        }
+
+        .recipe-ingredients {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* 조리 단계 — 사진(왼쪽) + 설명(오른쪽)을 순서대로 나란히 */
+        .recipe-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .recipe-step {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .step-figure {
+            position: relative;
+            flex: 0 0 auto;
+            width: 128px;
+            height: 88px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            background: var(--surface-muted);
+            border: 1px solid var(--line);
+        }
+
+        .step-photo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* 사진 위 좌상단 단계 번호 뱃지 */
+        .step-no {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            z-index: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 6px;
+            border-radius: 999px;
+            background: var(--accent);
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 850;
+            box-shadow: 0 1px 4px rgba(18, 65, 61, 0.35);
+        }
+
+        .step-text {
+            flex: 1 1 auto;
+            padding-top: 2px;
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.62;
+        }
+
+        @media (max-width: 640px) {
+            .step-figure {
+                width: 96px;
+                height: 68px;
+            }
+        }
+
+        .recipe-tip {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 11px 13px;
+            border-radius: var(--radius-sm);
+            background: var(--accent-soft);
+            color: var(--teal-ink);
+            font-size: 13px;
+            font-weight: 650;
             line-height: 1.55;
+        }
+
+        .recipe-tip-icon {
+            flex: 0 0 auto;
+            line-height: 1.4;
+        }
+
+        /* 유튜브에서 보기 — 링크 버튼 */
+        .recipe-youtube {
+            display: inline-flex;
+            align-self: flex-start;
+            align-items: center;
+            gap: 9px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: #ff0000;
+            color: #ffffff !important;
+            font-size: 13.5px;
+            font-weight: 800;
+            text-decoration: none !important;
+            transition: transform 120ms ease, box-shadow 120ms ease;
+            box-shadow: 0 6px 18px rgba(255, 0, 0, 0.22);
+        }
+
+        .recipe-youtube:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(255, 0, 0, 0.28);
+        }
+
+        .recipe-youtube-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.22);
+            font-size: 10px;
         }
 
         .typing-row {
@@ -1051,6 +1358,32 @@ def inject_global_styles() -> None:
             border-radius: var(--radius-md);
             background: var(--surface);
             box-shadow: var(--shadow-sm);
+        }
+
+        /* 진행 단계 말풍선: 점 애니메이션 + 현재 단계 문구 */
+        .progress-bubble {
+            display: inline-flex;
+            align-items: center;
+            gap: 11px;
+            padding: 13px 17px;
+            border: 1px solid var(--user-bubble-line);
+            border-radius: var(--radius-md);
+            background: var(--accent-soft);
+            box-shadow: var(--shadow-sm);
+            animation: rise-in 180ms ease both;
+        }
+
+        .progress-dots {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .progress-text {
+            color: var(--teal-ink);
+            font-size: 14px;
+            font-weight: 750;
+            letter-spacing: -0.01em;
         }
 
         .typing-dot {
@@ -1134,8 +1467,21 @@ def inject_global_styles() -> None:
                 font-size: 14px;
             }
 
-            .nutrition-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+            .nutri-strip {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+
+            .nutri-total {
+                padding-right: 0;
+                padding-bottom: 10px;
+                border-right: 0;
+                border-bottom: 1px solid var(--line-strong);
+            }
+
+            .food-name {
+                font-size: 16px;
             }
         }
         </style>

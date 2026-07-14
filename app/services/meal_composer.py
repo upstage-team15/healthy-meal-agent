@@ -161,11 +161,13 @@ def _generate_combos(
         rices = candidates.get("밥", [])[:_CANDIDATE_POOL]
         soups = candidates.get("국물", [])[:_CANDIDATE_POOL]
         sides = candidates.get("반찬", [])[:_CANDIDATE_POOL]
-        # 밥이 없으면 국/반찬만으로도 조합(데이터 편차 방어)
+        # 국물은 밥과 함께여야 자연스럽다(한식 상식). 밥 후보가 없으면 국물은 아예 안 붙인다.
+        # → "국물 단독" / "국물+반찬만" 같은 어색한 조합이 생성 단계에서 안 나오게 막는다.
         rice_opts = rices or [None]
         for rice in rice_opts:
             base = [rice] if rice else []
-            soup_opts = [None] + soups
+            # 밥이 있을 때만 국물을 곁들임 후보로 둔다(밥 없으면 국물 제외).
+            soup_opts = ([None] + soups) if rice else [None]
             for soup in soup_opts:
                 cur = base + ([soup] if soup else [])
                 # 반찬 0/1/2개
@@ -260,6 +262,13 @@ def _score(items: list[FoodItem], conditions: UserConditions) -> float:
     n_soup = sum(1 for f in items if f.meal_role == "국물")
     if n_soup >= 2:
         penalty += 300 * (n_soup - 1)
+
+    # 8) 국물은 밥과 함께여야 자연스럽다(한식 상식). 국물이 있는데 밥이 없으면 강한 벌점.
+    #    (예: 된장찌개+반찬만 → 밥 없이 국·반찬만 먹는 어색한 조합 방지)
+    has_soup = n_soup >= 1
+    has_rice = any(f.meal_role == "밥" for f in items)
+    if has_soup and not has_rice:
+        penalty += 400
 
     return penalty
 
