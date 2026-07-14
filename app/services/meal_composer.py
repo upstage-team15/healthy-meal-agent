@@ -17,7 +17,7 @@ app/services/meal_composer.py
 import random
 
 from app.schemas import FoodItem, MealPlan, NutritionTotal, UserConditions
-from app.services.validator import macro_deviation
+from app.services.validator import TARGET_KCAL_TOLERANCE, macro_deviation
 
 MAIN_MIN_RATIO = 0.75  # 목표 칼로리의 이 비율 미만이면 한그릇/조합이 부실 (validator 하한과 동일)
 SODIUM_SOFT_MAX = 1500  # 이 값 초과 조합은 validator에서 FAIL → 후보 채점에서 강한 감점
@@ -200,8 +200,9 @@ def _score(items: list[FoodItem], conditions: UserConditions) -> float:
                 penalty += (kcal - target) * 100  # 초과는 절대 안 됨 → 매우 강한 벌점
             elif kcal < target * MAIN_MIN_RATIO:
                 penalty += (target * MAIN_MIN_RATIO - kcal) * 20  # 부실도 벌점(덜 강함)
-        else:  # target(정도) 또는 mode 미상
-            lo, hi = target * 0.9, target * 1.1
+        else:  # target(정도) 또는 mode 미상 — validator와 동일한 허용 오차 사용
+            lo = target * (1 - TARGET_KCAL_TOLERANCE)
+            hi = target * (1 + TARGET_KCAL_TOLERANCE)
             if kcal < lo:
                 penalty += (lo - kcal) * 50
             elif kcal > hi:
