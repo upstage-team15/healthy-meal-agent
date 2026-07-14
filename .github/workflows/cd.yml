@@ -159,6 +159,15 @@ jobs:
               DC="docker-compose"
             fi
 
+            # ── 디스크 정리: 이전 이미지/빌드 캐시가 쌓이면 pull 중 no space left가 난다 ──
+            # 실행 중인 컨테이너와 Docker volume은 보존한다.
+            echo "🧹 Docker 디스크 정리..."
+            docker system df || true
+            docker container prune -f || true
+            docker image prune -af || true
+            docker builder prune -af || true
+            docker system df || true
+
             # ── GHCR 로그인 후 pull ──
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             echo "📦 이미지 pull: ${FULL_IMAGE}"
@@ -173,6 +182,8 @@ jobs:
             for i in $(seq 1 12); do
               if curl -fsS http://localhost:8000/api/v1/health > /dev/null; then
                 echo "✅ 배포 성공 — API 정상"
+                docker image prune -af || true
+                docker builder prune -af || true
                 exit 0
               fi
               echo "  대기 $i/12..."
