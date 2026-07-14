@@ -22,6 +22,27 @@ def format_conversation_title(conversation: dict) -> str:
     return title[:28] + ("..." if len(title) > 28 else "")
 
 
+def render_allergy_profile() -> None:
+    """알레르기·못 먹는 음식 입력. 세션 동안 유지되며 모든 추천에 반영된다.
+
+    로그인이 없는 MVP라 브라우저 세션 단위로만 기억한다(기획서: 세션 간 장기기억은 비목표).
+    새 채팅을 만들어도 이 프로필은 유지된다(session_state 전역).
+    """
+    st.html('<div class="sidebar-section-label">내 프로필</div>')
+    raw = st.text_input(
+        "알레르기·못 먹는 음식",
+        key="profile_allergies_input",
+        placeholder="예: 계란, 우유, 새우",
+        help="쉼표로 구분해 입력하세요. 입력한 재료가 든 음식은 추천에서 제외됩니다.",
+    )
+    allergies = [x.strip() for x in raw.split(",") if x.strip()]
+    st.session_state.user_allergies = allergies
+    if allergies:
+        st.html(
+            '<div class="sidebar-empty">제외 중: ' + ", ".join(allergies) + "</div>",
+        )
+
+
 def render_sidebar() -> None:
     render_sidebar_header()
 
@@ -33,6 +54,8 @@ def render_sidebar() -> None:
     ):
         create_new_chat()
         st.rerun()
+
+    render_allergy_profile()
 
     query = st.text_input(
         "대화 검색",

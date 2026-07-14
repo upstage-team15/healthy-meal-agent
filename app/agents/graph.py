@@ -84,6 +84,7 @@ class GraphState(TypedDict, total=False):
     final_response: str
     wanted_matched: list[FoodItem]  # 사용자가 콕 집은 음식(DB 매칭) → 조합에 강제 포함
     wanted_missing: list[str]  # 요청했으나 DB에 없는 음식명(안내용)
+    pending_message: str  # 멀티턴: 되묻기 직전 사용자 메시지(다음 턴에서 병합)
 
 
 # 되묻기(need_more_info)를 뒤집을 만한 '조건 신호어'. LLM이 흔들려도 코드가 보정한다.
@@ -135,14 +136,40 @@ def _has_candidates(candidates_by_role: dict[str, list[FoodItem]]) -> bool:
 def create_graph(
     extractor: Callable[[str], UserConditions],
     classifier: Callable[[str], IntentType] = classify_intent_stub,
+    checkpointer=None,
 ):
-    """StateGraph를 생성한다. extractor/classifier는 stub/Solar를 호출부에서 주입한다."""
+    """StateGraph를 생성한다. extractor/classifier는 stub/Solar를 호출부에서 주입한다.
+
+    checkpointer를 주면 멀티턴(되묻기→이어받기)을 지원한다(thread_id별 State 저장).
+    없으면 기존처럼 매 호출이 독립적인 무상태 실행이다.
+    """
 
     def route_node(state: GraphState) -> GraphState:
-        intent = classifier(state["user_message"])
+        updates: GraphState = {}
+        message = state["user_message"]
+
+        # 멀티턴 병합: 직전 턴이 되묻기(need_more_info)였다면 pending_message가 남아 있다.
+        # 이번 답변을 이전 메시지와 합쳐 하나의 요청으로 재구성한다.
+        # (예: "뭐 먹지?" → 되묻기 → "매운 거 400kcal" → "뭐 먹지? 매운 거 400kcal")
+        pending = state.get("pending_message")
+        if pending:
+            message = f"{pending} {message}".strip()
+            updates["user_message"] = message
+            updates["pending_message"] = ""  # 병합했으니 소진
+            print(f"[multiturn] 이전 되묻기와 병합 → '{message}'")
+            # 되묻기에 대한 답변이므로 본질적으로 '추천 요청'이다.
+            # 병합 결과에 조건 신호(맛·칼로리·형태 등)가 있으면 분류를 건너뛰고 추천으로 진행한다.
+            # (이전 되묻기 문장의 물음표·단어가 분류를 흔드는 것을 방지)
+            if _has_condition_signal(message):
+                print(f"[intent] '{message}' → meal_recommend (멀티턴 이어받기)")
+                updates["intent"] = "meal_recommend"
+                return updates
+
+        intent = classifier(message)
         # 어떤 분기로 갔는지 서버 로그로 확인 (디버깅·시연용)
-        print(f"[intent] '{state['user_message']}' → {intent}")
-        return {"intent": intent}
+        print(f"[intent] '{message}' → {intent}")
+        updates["intent"] = intent
+        return updates
 
     def nutrition_query_node(state: GraphState) -> GraphState:
         # 수치는 코드가 DB에서 조회 (LLM이 숫자를 지어내지 않음)
@@ -155,7 +182,12 @@ def create_graph(
         return {"final_response": OUT_OF_SCOPE_RESPONSE}
 
     def need_more_info_node(state: GraphState) -> GraphState:
-        return {"final_response": NEED_MORE_INFO_RESPONSE}
+        # 멀티턴: 이번 메시지를 저장해 두면, 다음 턴에서 사용자의 답변과 병합해 이어간다.
+        # (checkpointer가 켜져 있을 때만 유효. 없으면 그냥 되묻기 문구만 나간다.)
+        return {
+            "final_response": NEED_MORE_INFO_RESPONSE,
+            "pending_message": state["user_message"],
+        }
 
     def extract_node(state: GraphState) -> GraphState:
         conditions = extractor(state["user_message"])
@@ -311,7 +343,22 @@ def create_graph(
         route_after_validate,
         {"retrieve": "retrieve", "compose": "compose", "end": END},
     )
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)
+
+
+# 멀티턴 State 저장소(프로세스 전역). thread_id별 대화 맥락을 세션 동안 유지한다.
+# MVP라 인메모리 — 서버 재시작 시 초기화(기획서 '세션 간 장기기억은 비목표'와 일치).
+_CHECKPOINTER = None
+
+
+def _get_checkpointer():
+    """MemorySaver 싱글톤. 한 번만 만들어 재사용해야 thread별 State가 유지된다."""
+    global _CHECKPOINTER
+    if _CHECKPOINTER is None:
+        from langgraph.checkpoint.memory import MemorySaver
+
+        _CHECKPOINTER = MemorySaver()
+    return _CHECKPOINTER
 
 
 def run_agent(
@@ -319,9 +366,19 @@ def run_agent(
     profile: UserProfile = None,
     extractor: Callable[[str], UserConditions] = extract_conditions_stub,
     classifier: Callable[[str], IntentType] = classify_intent_stub,
+    thread_id: str | None = None,
 ) -> AgentState:
-    """공개 진입점. 요청 분류(intent) → 분기 → (추천이면) 파이프라인. 반환형은 기존과 동일."""
+    """공개 진입점. 요청 분류(intent) → 분기 → (추천이면) 파이프라인. 반환형은 기존과 동일.
+
+    thread_id를 주면 멀티턴(되묻기→이어받기)을 지원한다. 없으면 기존처럼 무상태 실행.
+    """
     initial_state = AgentState(user_message=user_message, profile=profile or UserProfile())
-    graph = create_graph(extractor, classifier)
-    result = graph.invoke(initial_state.__dict__.copy())
+
+    if thread_id:
+        graph = create_graph(extractor, classifier, checkpointer=_get_checkpointer())
+        config = {"configurable": {"thread_id": thread_id}}
+        result = graph.invoke(initial_state.__dict__.copy(), config=config)
+    else:
+        graph = create_graph(extractor, classifier)
+        result = graph.invoke(initial_state.__dict__.copy())
     return AgentState.model_validate(result)

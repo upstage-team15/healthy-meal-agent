@@ -19,6 +19,7 @@ from app.schemas import FoodItem, IntentType, NutritionTotal, UserProfile
 class ChatRequest(BaseModel):
     message: str = Field(..., description="사용자 자연어 요청", min_length=1)
     profile: Optional[UserProfile] = None  # 없으면 기본 프로필
+    thread_id: Optional[str] = None  # 멀티턴 식별자(대화별). 없으면 단발 요청(무상태)
 
 
 # ─────────────────────────────────────────────

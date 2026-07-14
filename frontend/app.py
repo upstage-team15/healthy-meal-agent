@@ -101,7 +101,12 @@ else:
 
 if pending_user_message:
     time.sleep(0.25)
-    assistant_text, agent_payload = run_recommendation(pending_user_message)
+    # thread_id = 활성 대화 id → 대화별 멀티턴(되묻기→이어받기). 알레르기는 세션 프로필에서.
+    assistant_text, agent_payload = run_recommendation(
+        pending_user_message,
+        allergies=st.session_state.get("user_allergies", []),
+        thread_id=active["id"],
+    )
     append_message(
         active,
         "assistant",
