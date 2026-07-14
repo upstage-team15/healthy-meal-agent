@@ -103,7 +103,7 @@ def test_supabase_path_mocked(monkeypatch):
     captured = {}
 
     def fake_embed_query(text):
-        captured["query_text"] = text
+        captured.setdefault("query_texts", []).append(text)
         return [0.0] * 4096
 
     fake_row = {
@@ -141,8 +141,10 @@ def test_supabase_path_mocked(monkeypatch):
 
     # 역할별로 RPC 호출됨 (4개 역할)
     assert len(captured["calls"]) == 4
-    # 검색문에 의미 조건 반영
-    assert "얼큰한" in captured["query_text"]
+    # 맛 조건이 검색문에 반영됨 (임베딩된 텍스트 중 하나에 "얼큰한" 포함)
+    assert any("얼큰한" in t for t in captured["query_texts"])
+    # 밥은 맛 노이즈 제거를 위해 중립 쿼리로 검색됨 (별도 임베딩 존재)
+    assert "밥" in captured["query_texts"]
     # 제외어(알레르기+exclude)가 RPC 파라미터에 합쳐져 전달
     assert set(captured["calls"][0]["excluded_terms"]) == {"우유", "계란"}
     # 결과가 FoodItem으로 변환되어 역할별 dict에 담김

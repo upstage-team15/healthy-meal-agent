@@ -24,6 +24,12 @@ CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "foods_samsam.csv"
 ROLES = ["밥", "국물", "반찬", "한그릇"]
 PER_ROLE = 20  # 역할별로 가져올 후보 수
 
+# 맛 키워드("칼칼한")를 의미검색에 쓰지 않는 역할.
+# 밥은 맛이 아니라 '탄수화물 담당'이라 맛 벡터를 적용하면 노이즈만 된다(유사도 0.25 수준).
+# → 밥은 중립 쿼리로 검색해 어울리는 기본 밥류를 뽑는다.
+_FLAVOR_NEUTRAL_ROLES = {"밥"}
+_NEUTRAL_QUERY = "밥"
+
 # 저염("저염" nutrition_goal) 요청 시 개별 음식에 적용할 나트륨 상한(mg).
 # 한 끼 총합 KDRI 기준은 767mg/끼(validator와 동일). 한 끼가 밥+국+반찬으로 나뉘므로
 # 개별 음식엔 보수적 상한을 둬 젓갈·장아찌 등 고나트륨 음식을 사실 축에서 배제한다.
@@ -157,6 +163,8 @@ def _retrieve_supabase(conditions, profile, relax: bool) -> dict:
 
     client = get_client()
     query_vec = embed_query(build_search_query(conditions))
+    # 밥처럼 맛과 무관한 역할은 중립 쿼리 벡터로 검색(맛 노이즈 제거). 필요할 때만 임베딩.
+    neutral_vec = embed_query(_NEUTRAL_QUERY) if _FLAVOR_NEUTRAL_ROLES else query_vec
 
     excluded = [x for x in (list(profile.allergies) + list(conditions.exclude_foods)) if x]
     max_kcal = conditions.target_kcal if (conditions.target_kcal and not relax) else None
@@ -165,8 +173,9 @@ def _retrieve_supabase(conditions, profile, relax: bool) -> dict:
 
     result: dict[str, list[FoodItem]] = {role: [] for role in ROLES}
     for role in ROLES:
+        role_vec = neutral_vec if role in _FLAVOR_NEUTRAL_ROLES else query_vec
         params = {
-            "query_embedding": query_vec,
+            "query_embedding": role_vec,
             "match_count": PER_ROLE,
             "role_filter": [role],
             "excluded_terms": excluded,
