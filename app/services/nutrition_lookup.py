@@ -77,4 +77,3 @@ def answer_nutrition_query(user_message: str, foods: list[FoodItem] | None = Non
         f"  · {sugar_part}나트륨 {food.sodium:.0f}mg\n"
         f"(식약처 통합식품영양성분 DB 기준)"
     )
-
