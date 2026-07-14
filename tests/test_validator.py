@@ -45,13 +45,25 @@ def test_sodium_warning():
 
 
 def test_allergy_included_fails():
-    """알레르기 음식 포함 → FAIL"""
+    """알레르기 음식 포함(이름 매칭) → FAIL"""
     mp = MealPlan(meal_type="한그릇", items=[_food(name="계란볶음밥")])
     nt = NutritionTotal(total_kcal=350, total_sodium=300)
     cond = UserConditions(target_kcal=400, kcal_mode="upper")
     prof = UserProfile(allergies=["계란"])
     vr = validate_meal(mp, nt, cond, prof)
     assert vr.status == "FAIL"
+
+
+def test_allergy_in_ingredients_fails():
+    """이름엔 없지만 '재료'에 알레르겐이 있으면 → FAIL (반죽 속 계란 등 숨은 알레르겐)."""
+    food = _food(name="양배추감자전")
+    food.ingredients = "감자 100g, 양배추 50g, 계란 1개, 밀가루 30g"
+    mp = MealPlan(meal_type="한그릇", items=[food])
+    nt = NutritionTotal(total_kcal=350, total_sodium=300)
+    cond = UserConditions(target_kcal=400, kcal_mode="upper")
+    prof = UserProfile(allergies=["계란"])
+    vr = validate_meal(mp, nt, cond, prof)
+    assert vr.status == "FAIL", "재료 속 계란을 못 잡음 — 숨은 알레르겐 방어 회귀"
 
 
 def _bowl(name, kcal=300, role="한그릇"):

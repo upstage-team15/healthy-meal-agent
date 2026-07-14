@@ -71,10 +71,12 @@ def validate_meal(
         )
 
     # ── 2. 제외음식/알레르기 (FAIL 엄격) ──
+    # 이름뿐 아니라 '재료'까지 검사한다 — 이름에 안 드러난 알레르겐(반죽 속 계란 등) 차단.
     excluded = list(profile.allergies) + list(conditions.exclude_foods)
     for food in meal_plan.items:
+        haystack = f"{food.food_name} {getattr(food, 'ingredients', '') or ''}"
         for x in excluded:
-            if x and x in food.food_name:
+            if x and x in haystack:
                 failures.append(f"제외 대상 '{x}'이(가) '{food.food_name}'에 포함됐습니다.")
                 cause = "retrieve"  # 후보 검색이 잘못 걸러진 것 → 검색부터 다시
 

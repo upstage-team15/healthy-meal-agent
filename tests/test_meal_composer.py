@@ -89,6 +89,31 @@ def test_no_two_onedish_in_one_plan():
         assert n_onedish <= 1, f"한그릇 {n_onedish}개 조합됨: {[f.food_name for f in mp.items]}"
 
 
+def test_soup_without_rice_is_penalized():
+    """국물은 밥과 함께여야 자연스럽다 — 국물+반찬(밥 없음)은 밥+국물보다 점수가 나빠야."""
+    from app.schemas import FoodItem
+    from app.services.meal_composer import _score
+
+    def f(name, role, kcal=100):
+        return FoodItem(
+            food_id=abs(hash(name)) % 100000,
+            food_name=name,
+            meal_role=role,
+            kcal=kcal,
+            carbohydrate=15,
+            protein=6,
+            fat=3,
+            sodium=200,
+        )
+
+    cond = UserConditions()  # 칼로리 조건 없음 → 궁합 벌점만 비교
+    soup_no_rice = [f("된장찌개", "국물"), f("나물", "반찬")]
+    soup_with_rice = [f("쌀밥", "밥"), f("된장찌개", "국물")]
+    assert _score(soup_no_rice, cond) > _score(soup_with_rice, cond), (
+        "국물+반찬(밥없음)이 밥+국물보다 점수가 좋게 나옴 — 국물·밥 궁합 규칙 회귀"
+    )
+
+
 def test_judge_result_parsing():
     """LLM 판정 응답(JSON)을 choice/acceptable/reason으로 정확히 파싱하는지."""
     from app.services.meal_judge import _parse_judge

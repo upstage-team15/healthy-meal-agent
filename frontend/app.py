@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-import time
 from pathlib import Path
 
 import streamlit as st
@@ -14,7 +13,7 @@ for import_path in (str(PROJECT_ROOT), str(FRONTEND_DIR)):
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(1, str(FRONTEND_DIR))
 
-from api_client import run_recommendation  # noqa: E402
+from api_client import stream_recommendation  # noqa: E402
 from auth_view import render_login_entry  # noqa: E402
 from chat_state import (  # noqa: E402
     append_message,
@@ -26,8 +25,8 @@ from chat_view import (  # noqa: E402
     render_empty_state,
     render_message,
     render_message_stream_spacer,
+    render_progress_step,
     render_suggestion_buttons,
-    render_typing_indicator,
 )
 from composer import render_chat_composer, reset_attachment_widget  # noqa: E402
 from sidebar import render_sidebar  # noqa: E402
@@ -93,8 +92,8 @@ else:
         with st.container(key="message_stream"):
             for message in active["messages"]:
                 render_message(message)
-            if pending_user_message:
-                render_typing_indicator()
+            # 생성 중이면 여기(마지막 메시지 자리)에 실시간 단계 표시가 들어간다.
+            progress_slot = st.empty() if pending_user_message else None
             render_message_stream_spacer()
     submitted_text, submitted_files = render_chat_composer(
         disabled=st.session_state.is_generating,
@@ -102,13 +101,23 @@ else:
     )
 
 if pending_user_message:
-    time.sleep(0.25)
-    # thread_id = 활성 대화 id → 대화별 멀티턴(되묻기→이어받기). 알레르기는 세션 프로필에서.
-    assistant_text, agent_payload = run_recommendation(
+    # SSE로 파이프라인 단계를 실시간 수신 → 단계 문구를 갱신하다가, 결과가 오면 대화에 추가.
+    assistant_text = "조건을 조금 더 알려주시면 식단을 다시 맞춰볼게요."
+    agent_payload = None
+    for kind, value in stream_recommendation(
         pending_user_message,
         allergies=st.session_state.get("user_allergies", []),
         thread_id=active["id"],
-    )
+    ):
+        if kind == "progress" and progress_slot is not None:
+            with progress_slot:
+                render_progress_step(value)
+        elif kind == "result":
+            assistant_text, agent_payload = value
+        elif kind == "error":
+            assistant_text, agent_payload = value, None
+    if progress_slot is not None:
+        progress_slot.empty()
     append_message(
         active,
         "assistant",

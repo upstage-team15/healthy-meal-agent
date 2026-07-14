@@ -27,3 +27,6 @@ database/
 # 데이터 정제 백업·중간산출
 app/data/*.bak*
 app/data/foods_classified.csv
+
+# 레시피 이미지 프록시 캐시
+.cache/

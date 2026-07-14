@@ -57,27 +57,10 @@ def render_sidebar() -> None:
 
     render_allergy_profile()
 
-    query = st.text_input(
-        "대화 검색",
-        key="conversation_search",
-        placeholder="채팅 검색",
-        label_visibility="collapsed",
-    ).strip()
-
     st.html('<div class="sidebar-section-label">최근</div>')
 
-    conversations = st.session_state.conversations
-    filtered = [
-        conversation
-        for conversation in conversations
-        if query.lower() in conversation["title"].lower()
-    ]
-
-    if not filtered:
-        st.html('<div class="sidebar-empty">검색 결과가 없습니다.</div>')
-        return
-
-    for conversation in filtered:
+    # 대화는 항상 하나만 유지한다(새 채팅 시 기존 대화 삭제) → 검색 불필요.
+    for conversation in st.session_state.conversations:
         label = format_conversation_title(conversation)
         is_active = conversation["id"] == st.session_state.active_conversation_id
         if st.button(

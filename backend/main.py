@@ -7,7 +7,7 @@ FastAPI 앱 생성 + 라우터 등록만 담당한다(정문).
 from fastapi import FastAPI
 
 from app.services.observability import setup_observability
-from backend.routers import chat, health
+from backend.routers import chat, health, recipe_image
 
 app = FastAPI(title="Healthy Meal Agent API")
 
@@ -16,6 +16,7 @@ setup_observability()
 
 app.include_router(health.router)
 app.include_router(chat.router)
+app.include_router(recipe_image.router)
 
 
 @app.get("/")

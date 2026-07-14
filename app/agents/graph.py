@@ -4,7 +4,7 @@ app/agents/graph.py
 services는 그대로 호출하고, 이 파일은 노드 연결과 재시도 라우팅만 담당한다.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -382,3 +382,58 @@ def run_agent(
         graph = create_graph(extractor, classifier)
         result = graph.invoke(initial_state.__dict__.copy())
     return AgentState.model_validate(result)
+
+
+# 그래프 노드명 → 사용자에게 보여줄 '지금 무슨 단계인가' 문구.
+# LangGraph .stream()이 노드가 끝날 때마다 노드명을 흘려주므로, 이걸로 실시간 진행표시를 만든다.
+NODE_PROGRESS = {
+    "route": "요청을 이해하고 있어요…",
+    "extract": "건강 조건을 분석하고 있어요…",
+    "retrieve": "어울리는 음식을 찾고 있어요…",
+    "compose": "한 끼 조합을 구성하고 있어요…",
+    "calculate": "영양 성분을 계산하고 있어요…",
+    "validate": "건강 기준으로 검증하고 있어요…",
+}
+
+
+def stream_agent(
+    user_message: str,
+    profile: UserProfile = None,
+    extractor: Callable[[str], UserConditions] = extract_conditions_stub,
+    classifier: Callable[[str], IntentType] = classify_intent_stub,
+    thread_id: str | None = None,
+) -> Iterator[tuple[str, object]]:
+    """run_agent의 스트리밍 버전. 노드가 끝날 때마다 진행 상황을 흘려보낸다.
+
+    yield 형태:
+      ("progress", "건강 조건을 분석하고 있어요…")  # 사용자 표시용 단계 문구
+      ("result", AgentState)                        # 마지막에 최종 상태 1회
+
+    LangGraph .stream()이 각 노드 실행 후 {노드명: state_update}를 준다. 노드명을
+    NODE_PROGRESS로 문구화해 진행을 알리고, 업데이트를 누적해 최종 AgentState를 만든다.
+    """
+    initial_state = AgentState(user_message=user_message, profile=profile or UserProfile())
+
+    if thread_id:
+        graph = create_graph(extractor, classifier, checkpointer=_get_checkpointer())
+        config = {"configurable": {"thread_id": thread_id}}
+        stream = graph.stream(initial_state.__dict__.copy(), config=config)
+    else:
+        graph = create_graph(extractor, classifier)
+        stream = graph.stream(initial_state.__dict__.copy())
+
+    # .stream()은 상태 '델타'만 주므로, 누적해서 최종 전체 상태를 만든다.
+    accumulated: dict = initial_state.__dict__.copy()
+    last_node: str | None = None
+    for chunk in stream:
+        for node_name, state_update in chunk.items():
+            last_node = node_name
+            if isinstance(state_update, dict):
+                accumulated.update(state_update)
+            phrase = NODE_PROGRESS.get(node_name)
+            if phrase:
+                yield ("progress", phrase)
+    # 재시도 루프(validate→compose)로 같은 노드가 여러 번 진행문구를 내도 프론트는
+    # 마지막 것만 보이면 되므로 문제 없다. 마지막에 최종 상태를 한 번 넘긴다.
+    _ = last_node
+    yield ("result", AgentState.model_validate(accumulated))

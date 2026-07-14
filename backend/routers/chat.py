@@ -14,6 +14,7 @@ import json
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
+from app.agents.graph import stream_agent
 from app.agents.meal_agent import run_agent
 from app.schemas import AgentState, UserProfile
 from app.services.condition_extractor import extract_conditions_llm
@@ -74,21 +75,52 @@ def _sse(event: str, data: dict) -> str:
 @router.post("/chat")
 async def chat_stream(req: ChatRequest) -> StreamingResponse:
     """
-    SSE 스트리밍. 추천 파이프라인은 동기 함수라 스레드로 돌리고,
-    진행 단계(status)와 최종 결과(result)를 이벤트로 흘려보낸다.
-    실패 시 error 이벤트를 보낸 뒤 스트림을 닫는다(연결이 끊기지 않게).
+    SSE 스트리밍. LangGraph 파이프라인의 '각 단계'를 실시간으로 흘려보낸다.
+      - status(progress): "건강 조건을 분석하고 있어요…" 등 단계별 진행 문구
+      - result: 최종 추천 payload
+      - error: 예외 시 안내 후 스트림 종료
+    stream_agent는 동기(블로킹) 제너레이터라, 이벤트 루프를 막지 않게
+    별도 스레드에서 돌리고 asyncio.Queue로 프레임을 건네받는다.
     """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+    _DONE = object()
+
+    def produce() -> None:
+        """워커 스레드: 그래프를 스트리밍하며 각 이벤트를 큐로 넘긴다."""
+        try:
+            profile = req.profile or UserProfile()
+            final_state = None
+            for kind, value in stream_agent(
+                req.message,
+                profile=profile,
+                extractor=extract_conditions_llm,
+                classifier=classify_intent_llm,
+                thread_id=req.thread_id,
+            ):
+                if kind == "progress":
+                    loop.call_soon_threadsafe(
+                        queue.put_nowait, _sse("status", {"stage": "progress", "message": value})
+                    )
+                elif kind == "result":
+                    final_state = value
+            payload = _to_response(final_state).model_dump()
+            loop.call_soon_threadsafe(queue.put_nowait, _sse("result", payload))
+        except Exception as e:  # LLM 타임아웃 등 예기치 못한 실패
+            loop.call_soon_threadsafe(
+                queue.put_nowait, _sse("error", {"message": f"추천 중 오류가 발생했어요: {e}"})
+            )
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, _DONE)
 
     async def event_gen():
-        yield _sse("status", {"stage": "start", "message": "요청을 분석하고 있어요..."})
-        try:
-            # run_agent는 동기(블로킹)라 이벤트 루프를 막지 않도록 스레드로 실행
-            state = await asyncio.to_thread(_run, req)
-            yield _sse("status", {"stage": "done", "message": "추천을 완성했어요."})
-            payload = _to_response(state).model_dump()
-            yield _sse("result", payload)
-        except Exception as e:  # LLM 타임아웃 등 예기치 못한 실패
-            yield _sse("error", {"message": f"추천 중 오류가 발생했어요: {e}"})
+        yield _sse("status", {"stage": "start", "message": "요청을 받았어요…"})
+        loop.run_in_executor(None, produce)
+        while True:
+            frame = await queue.get()
+            if frame is _DONE:
+                break
+            yield frame
 
     return StreamingResponse(
         event_gen(),

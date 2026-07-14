@@ -8,18 +8,16 @@ from app.schemas import AgentState
 
 
 def build_final_response(state: AgentState) -> str:
+    """말풍선에 담을 '대화체 한두 줄'. 상세 수치·음식·경고는 아래 카드가 보여주므로
+    여기서는 반복하지 않는다(중복 제거). 카드가 못 그리는 상황에서만 최소 정보 폴백.
+    """
     mp = state.meal_plan
     nt = state.nutrition_total
     vr = state.validation_result
 
-    lines = [f"[{mp.meal_type}] 추천 식단"]
-    for food in mp.items:
-        lines.append(f"  · {food.food_name} ({food.kcal:.0f}kcal, 나트륨 {food.sodium:.0f}mg)")
-    lines.append(
-        f"\n총 {nt.total_kcal:.0f}kcal · 나트륨 {nt.total_sodium:.0f}mg "
-        f"· 탄{nt.total_carbohydrate:.0f}/단{nt.total_protein:.0f}/지{nt.total_fat:.0f}g"
-    )
-    lines.append(f"\n{mp.reason}")
+    # 음식명·수치 나열은 카드가 보여주므로, 말풍선은 '이유 한 줄 + 총 열량 안내'만.
+    intro = mp.reason.rstrip() if mp.reason else f"조건에 맞춰 {mp.meal_type} 한 끼를 구성했어요."
+    lines = [intro, f"총 {nt.total_kcal:.0f}kcal예요. 아래에서 영양과 레시피를 확인해 보세요."]
     if vr.warnings:
-        lines.append("주의: " + " ".join(vr.warnings))
+        lines.append("⚠️ " + " ".join(vr.warnings))
     return "\n".join(lines)
