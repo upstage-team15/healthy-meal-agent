@@ -86,9 +86,7 @@ def test_no_two_onedish_in_one_plan():
         cond = UserConditions(target_kcal=600)
         mp = _compose(cond, seed=seed)
         n_onedish = sum(1 for f in mp.items if f.meal_role == "한그릇")
-        assert n_onedish <= 1, (
-            f"한그릇 {n_onedish}개 조합됨: {[f.food_name for f in mp.items]}"
-        )
+        assert n_onedish <= 1, f"한그릇 {n_onedish}개 조합됨: {[f.food_name for f in mp.items]}"
 
 
 def test_judge_result_parsing():

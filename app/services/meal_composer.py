@@ -74,9 +74,7 @@ def compose_meal(
     if not judged_ok:
         # 상위 묶음이 전부 어색 → 그 다음 상위 후보들로 재시도(같은 후보 제외)
         used = {tuple(sorted(f.food_id for f in items)) for _, items in top}
-        remaining = [
-            s for s in scored if tuple(sorted(f.food_id for f in s[2])) not in used
-        ]
+        remaining = [s for s in scored if tuple(sorted(f.food_id for f in s[2])) not in used]
         if remaining:
             top2 = _top_distinct(remaining, JUDGE_TOP_N)
             best_type, best_items, _ = _select_best(top2, conditions)

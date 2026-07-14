@@ -56,8 +56,14 @@ def test_allergy_included_fails():
 
 def _bowl(name, kcal=300, role="한그릇"):
     return FoodItem(
-        food_id=abs(hash(name)) % 100000, food_name=name, meal_role=role,
-        kcal=kcal, carbohydrate=40, protein=10, fat=8, sodium=200,
+        food_id=abs(hash(name)) % 100000,
+        food_name=name,
+        meal_role=role,
+        kcal=kcal,
+        carbohydrate=40,
+        protein=10,
+        fat=8,
+        sodium=200,
     )
 
 
@@ -82,9 +88,13 @@ def test_two_mains_warns():
 
 def test_duplicate_ingredient_warns():
     """같은 주재료(닭)가 여러 음식에 겹치면 경고."""
-    mp = MealPlan(meal_type="한그릇", items=[
-        _bowl("닭가슴살말이", 230, role="반찬"), _bowl("닭고기볶음밥", 400),
-    ])
+    mp = MealPlan(
+        meal_type="한그릇",
+        items=[
+            _bowl("닭가슴살말이", 230, role="반찬"),
+            _bowl("닭고기볶음밥", 400),
+        ],
+    )
     nt = NutritionTotal(total_kcal=630, total_sodium=300)
     vr = validate_meal(mp, nt, UserConditions(), UserProfile())
     assert any("'닭' 재료가 여러 음식" in w for w in vr.warnings)
@@ -92,10 +102,14 @@ def test_duplicate_ingredient_warns():
 
 def test_normal_meal_no_false_warning():
     """정상 백반(밥+국+반찬)엔 새로 넣은 경고(칼로리·메인중복·재료중복)가 안 뜬다(오탐 방지)."""
-    mp = MealPlan(meal_type="백반", items=[
-        _bowl("현미밥", 200, role="밥"), _bowl("된장국", 50, role="국물"),
-        _bowl("시금치나물", 60, role="반찬"),
-    ])
+    mp = MealPlan(
+        meal_type="백반",
+        items=[
+            _bowl("현미밥", 200, role="밥"),
+            _bowl("된장국", 50, role="국물"),
+            _bowl("시금치나물", 60, role="반찬"),
+        ],
+    )
     # 탄단지 균형 잡힌 값 → macro 경고와 무관하게, 우리가 추가한 경고만 검사
     nt = NutritionTotal(
         total_kcal=310, total_carbohydrate=45, total_protein=15, total_fat=8, total_sodium=300

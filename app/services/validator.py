@@ -66,7 +66,9 @@ def validate_meal(
     # 닭+닭, 생선+생선처럼 같은 주재료가 여러 음식에 겹치면 한 끼로 단조롭다는 사실을 알린다.
     dup = _duplicate_main_ingredient(meal_plan.items)
     if dup:
-        warnings.append(f"'{dup}' 재료가 여러 음식에 겹칩니다. 다양하게 드시려면 하나를 바꿔보세요.")
+        warnings.append(
+            f"'{dup}' 재료가 여러 음식에 겹칩니다. 다양하게 드시려면 하나를 바꿔보세요."
+        )
 
     # ── 2. 제외음식/알레르기 (FAIL 엄격) ──
     excluded = list(profile.allergies) + list(conditions.exclude_foods)
@@ -109,7 +111,19 @@ def validate_meal(
 
 
 # 주재료 중복 감지용 대표 단백질 재료. 음식명에 같은 게 2번 이상 나오면 단조로운 한 끼.
-_MAIN_INGREDIENTS = ("닭", "돼지", "소고기", "쇠고기", "생선", "연어", "고등어", "꽁치", "새우", "오리", "두부")
+_MAIN_INGREDIENTS = (
+    "닭",
+    "돼지",
+    "소고기",
+    "쇠고기",
+    "생선",
+    "연어",
+    "고등어",
+    "꽁치",
+    "새우",
+    "오리",
+    "두부",
+)
 
 
 def _duplicate_main_ingredient(items) -> str | None:

@@ -62,7 +62,7 @@ def judge_coherence(candidates: list[list], conditions) -> JudgeResult:
         "- 죽처럼 부드러운 것과 튀김을 같이 (예: 죽+돈까스)\n\n"
         "후보:\n" + "\n".join(lines) + "\n\n"
         "가장 자연스러운 후보를 고르되, 후보 전부가 위처럼 어색하면 acceptable을 false로.\n"
-        'JSON만 답하세요(설명·마크다운 없이): '
+        "JSON만 답하세요(설명·마크다운 없이): "
         '{"choice": 번호(1부터), "acceptable": true/false, "reason": "한 줄 이유"}'
     )
 

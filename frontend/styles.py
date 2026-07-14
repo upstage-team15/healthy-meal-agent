@@ -513,25 +513,36 @@ def inject_global_styles() -> None:
 
         [data-testid="stBottom"],
         [data-testid="stBottomBlockContainer"],
-        .stBottomBlockContainer,
-        [class*="stBottom"],
-        [class*="stChatFloatingInputContainer"] {
+        .stBottomBlockContainer {
+            position: fixed !important;
+            inset: auto 0 0 0 !important;
+            z-index: 2147482500 !important;
+            width: 100% !important;
             background: transparent !important;
             border: 0 !important;
             box-shadow: none !important;
             pointer-events: none;
         }
 
+        [data-testid="stBottom"]::before,
+        [data-testid="stBottom"]::after,
+        [data-testid="stBottomBlockContainer"]::before,
+        [data-testid="stBottomBlockContainer"]::after,
+        .stBottomBlockContainer::before,
+        .stBottomBlockContainer::after {
+            display: none !important;
+            content: none !important;
+        }
+
         [data-testid="stBottom"] *,
         [data-testid="stBottomBlockContainer"] *,
-        .stBottomBlockContainer *,
-        [class*="stBottom"] * {
+        .stBottomBlockContainer * {
             box-shadow: none !important;
         }
 
+        [data-testid="stBottom"] > div,
         [data-testid="stBottomBlockContainer"] > div,
-        .stBottomBlockContainer > div,
-        [class*="stBottom"] > div {
+        .stBottomBlockContainer > div {
             max-width: 820px !important;
             margin: 0 auto 28px !important;
             padding: 0 24px !important;
@@ -683,7 +694,7 @@ def inject_global_styles() -> None:
         .st-key-message_stream {
             width: 100%;
             min-height: calc(100vh - 210px);
-            padding-bottom: 34px;
+            padding-bottom: 128px;
         }
 
         .brand-row {
@@ -1083,6 +1094,7 @@ def inject_global_styles() -> None:
                 margin-top: 58px;
             }
 
+            [data-testid="stBottom"] > div,
             [data-testid="stBottomBlockContainer"] > div,
             .stBottomBlockContainer > div {
                 padding: 0 14px !important;
