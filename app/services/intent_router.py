@@ -14,7 +14,6 @@ app/services/intent_router.py
   need_more_info  조건 부족 ("뭐 먹지?") → 되묻기
 """
 
-import os
 import re
 
 from dotenv import load_dotenv
@@ -105,18 +104,17 @@ def classify_intent_llm(user_message: str) -> IntentType:
     if is_extreme_low_calorie(user_message):
         return "risky"
     try:
-        import litellm
+        from app.services.llm_client import complete
 
-        response = litellm.completion(
-            model="openai/" + os.getenv("LLM_MODEL", "solar-pro3"),
-            messages=[{"role": "user", "content": INTENT_PROMPT + user_message}],
-            api_key=os.getenv("UPSTAGE_API_KEY"),
-            api_base="https://api.upstage.ai/v1",
-            temperature=0,
-            timeout=30,
-            num_retries=2,
+        # Solar(메인) 실패 시 OpenAI로 자동 Fallback (litellm Router). 둘 다 실패하면 stub.
+        raw = (
+            complete(
+                [{"role": "user", "content": INTENT_PROMPT + user_message}],
+                temperature=0,
+            )
+            .strip()
+            .lower()
         )
-        raw = response.choices[0].message.content.strip().lower()
         # 라벨이 문장 어딘가에 섞여 나와도 뽑아낸다
         for intent in VALID_INTENTS:
             if intent in raw:
