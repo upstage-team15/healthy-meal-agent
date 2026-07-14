@@ -80,6 +80,15 @@ def test_nutrition_lookup_unknown_food():
     assert "어떤 음식" in answer  # 모르면 되묻는다 (환각 금지)
 
 
+def test_nutrition_lookup_suggests_candidates_on_partial_match():
+    """정확매칭 실패 시, DB 음식명에 부분 포함되는 변형을 후보로 되묻는지
+    (예: "김치찌개"만 물었는데 DB엔 "닭고기김치찌개" 같은 변형만 있는 경우)"""
+    foods = food_retriever.load_foods()
+    answer = answer_nutrition_query("김치찌개 나트륨 얼마야", foods=foods)
+    assert "이 중 하나인가요" in answer
+    assert "김치찌개" in answer  # 후보 음식명에 매칭 문자열이 포함돼야 함
+
+
 # ── 3. 그래프 분기: intent별로 올바른 응답/경로 ──────────────────
 def _recommend_classifier(msg):
     return "meal_recommend"
