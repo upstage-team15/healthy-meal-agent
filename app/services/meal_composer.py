@@ -37,20 +37,28 @@ def compose_meal(
     """
     rng = random.Random(seed)
 
-    if meal_type is None:
-        if conditions.meal_style in ("백반", "한그릇"):
-            meal_type = conditions.meal_style
-        else:
-            meal_type = "한그릇" if candidates.get("한그릇") else "백반"
+    # 형태 결정: 사용자가 명시하면 그것만, 아니면 한그릇·백반 둘 다 만들어 제일 건강한 걸 고른다.
+    if meal_type in ("백반", "한그릇"):
+        types = [meal_type]
+    elif conditions.meal_style in ("백반", "한그릇"):
+        types = [conditions.meal_style]
+    else:
+        types = ["한그릇", "백반"]
 
-    combos = _generate_combos(candidates, conditions, meal_type, rng)
-    if not combos:
-        # 후보가 아예 없으면 빈 식단(그래프가 후보없음으로 처리)
-        return MealPlan(meal_type=meal_type, items=[], reason=_reason(meal_type, conditions))
+    # (형태, 조합) 후보를 모아 전체에서 최적 선택 — 생성-검증 루프가 형태까지 아우름
+    scored: list[tuple[float, str, list[FoodItem]]] = []
+    for t in types:
+        for items in _generate_combos(candidates, conditions, t, rng):
+            scored.append((_score(items, conditions), t, items))
 
-    # 각 조합을 건강 기준으로 채점해 최적 선택 (낮을수록 좋음)
-    best = min(combos, key=lambda items: _score(items, conditions))
-    return MealPlan(meal_type=meal_type, items=best, reason=_reason(meal_type, conditions))
+    if not scored:
+        fallback_type = types[0]
+        return MealPlan(
+            meal_type=fallback_type, items=[], reason=_reason(fallback_type, conditions)
+        )
+
+    _, best_type, best_items = min(scored, key=lambda x: x[0])
+    return MealPlan(meal_type=best_type, items=best_items, reason=_reason(best_type, conditions))
 
 
 def _generate_combos(
@@ -118,12 +126,15 @@ def _score(items: list[FoodItem], conditions: UserConditions) -> float:
     # 1) 칼로리 (안전축, 최우선)
     if target:
         kcal = nut.total_kcal
-        if conditions.kcal_mode == "upper":
+        # kcal_mode가 없어도(LLM이 안 밝힘) 숫자를 준 이상 칼로리 채점은 반드시 한다.
+        # None이면 target(정도)로 간주해 상·하한 모두 벌점 → 260kcal이 600 요청에 통과하는 구멍 방지.
+        mode = conditions.kcal_mode or "target"
+        if mode == "upper":
             if kcal > target:
                 penalty += (kcal - target) * 100  # 초과는 절대 안 됨 → 매우 강한 벌점
             elif kcal < target * MAIN_MIN_RATIO:
                 penalty += (target * MAIN_MIN_RATIO - kcal) * 20  # 부실도 벌점(덜 강함)
-        elif conditions.kcal_mode == "target":
+        else:  # target(정도) 또는 mode 미상
             lo, hi = target * 0.9, target * 1.1
             if kcal < lo:
                 penalty += (lo - kcal) * 50
