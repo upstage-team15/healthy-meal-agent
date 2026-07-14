@@ -55,6 +55,20 @@ def test_normal_per_meal_low_calorie_not_risky():
     assert classify_intent_stub("300kcal 이하로 칼칼한 거 추천해줘") == "meal_recommend"
 
 
+# ── 극단 고칼로리 안전망 (상한 가드) ────────────────
+def test_extreme_high_calorie_flagged_as_risky():
+    # 한 끼로 1500kcal를 초과하는 요청은 과다 섭취 → risky
+    assert classify_intent_stub("2000kcal 벌크업 한 끼 식단 짜줘") == "risky"
+    assert classify_intent_stub("한 끼 1800kcal로 배터지게") == "risky"
+
+
+def test_high_calorie_boundary_not_risky():
+    # 경계: 1500kcal 이하 한 끼는 정상(든든한 백반), 하루 맥락 고칼로리는 상한 대상 아님
+    assert classify_intent_stub("1500kcal 한 끼") == "meal_recommend"
+    assert classify_intent_stub("800kcal 든든한 백반") == "meal_recommend"
+    assert classify_intent_stub("하루 3000kcal 벌크업 식단") != "risky"
+
+
 def test_stub_classifies_need_more_info():
     assert classify_intent_stub("추천해줘") == "need_more_info"
     assert classify_intent_stub("뭐먹지?") == "need_more_info"
