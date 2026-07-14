@@ -52,3 +52,33 @@ def test_light_previous_meal_no_forced_balance():
     # 샐러드처럼 가벼운 이전식사는 강제 보정 안 함
     cond = _apply_context_rules(UserConditions(previous_meal="샐러드"), "샐러드 먹었는데 저녁")
     assert cond.target_kcal is None
+
+
+def test_light_words_map_to_low_kcal():
+    """'가볍게/다이어트'는 암묵 칼로리 상한(450 upper)으로 변환된다."""
+    from app.services.condition_extractor import _apply_context_rules
+    from app.schemas import UserConditions
+
+    for msg in ["가볍게 아침 먹을거", "다이어트 중인데 저녁"]:
+        cond = _apply_context_rules(UserConditions(), msg)
+        assert cond.target_kcal == 450 and cond.kcal_mode == "upper", msg
+
+
+def test_hearty_words_map_to_high_kcal():
+    """'든든/푸짐'은 암묵 칼로리 목표(750 target)로 변환된다."""
+    from app.services.condition_extractor import _apply_context_rules
+    from app.schemas import UserConditions
+
+    cond = _apply_context_rules(UserConditions(), "든든하게 푸짐한 한끼")
+    assert cond.target_kcal == 750 and cond.kcal_mode == "target"
+
+
+def test_explicit_kcal_not_overridden_by_amount_words():
+    """숫자로 칼로리를 밝힌 요청은 '가볍게' 신호가 있어도 그 값을 존중한다."""
+    from app.services.condition_extractor import _apply_context_rules
+    from app.schemas import UserConditions
+
+    cond = _apply_context_rules(
+        UserConditions(target_kcal=600, kcal_mode="target"), "600kcal 가볍게"
+    )
+    assert cond.target_kcal == 600  # 450으로 덮어쓰지 않음

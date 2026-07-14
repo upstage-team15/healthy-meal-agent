@@ -9,6 +9,11 @@ from app.schemas import MealPlan, NutritionTotal, UserConditions, UserProfile, V
 # 한 끼 조합은 개별 음식 단위가 커서 ±10%는 통과율이 빡빡 → ±15%로 완화.
 TARGET_KCAL_TOLERANCE = 0.15
 
+# 사용자가 칼로리를 안 밝힌 요청("비빔밥 덮밥", "고기 먹고싶다")의 한 끼 상식 상한.
+# 성인 하루 ~2000kcal / 3끼 ≈ 667. 한 끼 900 초과는 "무거운 한 끼"로 경고(FAIL 아님).
+# → 사용자가 콕 집은 조합은 존중하되, 결과가 무거우면 사실을 정직하게 알린다.
+MEAL_KCAL_SOFT_MAX = 900
+
 
 def validate_meal(
     meal_plan: MealPlan, nutrition: NutritionTotal, conditions: UserConditions, profile: UserProfile
@@ -38,6 +43,32 @@ def validate_meal(
                     f"±{TARGET_KCAL_TOLERANCE * 100:.0f}% 범위를 벗어났습니다({kcal:.0f}kcal)."
                 )
                 cause = "compose"
+    else:
+        # 칼로리를 안 밝힌 요청 — 한 끼 상식 상한만 본다. FAIL 아니라 경고(정직한 안내).
+        # 사용자가 콕 집은 조합("비빔밥 덮밥")은 존중하되 무거우면 사실을 알린다.
+        if nutrition.total_kcal > MEAL_KCAL_SOFT_MAX:
+            warnings.append(
+                f"이 조합은 한 끼로 칼로리가 높은 편입니다({nutrition.total_kcal:.0f}kcal). "
+                "가볍게 드시려면 하나를 덜어내는 것을 권합니다."
+            )
+
+    # ── 1-2. 메인 중복 (경고) ──
+    # 완결형 한 그릇/밥 메인이 2개 이상이면(비빔밥+덮밥 등) 한 끼로 무겁다는 사실을 알린다.
+    # 사용자가 콕 집어 둘 다 넣었을 수 있으니 FAIL이 아니라 경고로 존중+안내.
+    mains = [f for f in meal_plan.items if f.meal_role in ("한그릇", "밥")]
+    if len(mains) >= 2:
+        names = ", ".join(f.food_name for f in mains)
+        warnings.append(
+            f"완결형 요리가 여러 개 담겼습니다({names}). 한 끼로는 다소 무거울 수 있어요."
+        )
+
+    # ── 1-3. 주재료 중복 (경고) ──
+    # 닭+닭, 생선+생선처럼 같은 주재료가 여러 음식에 겹치면 한 끼로 단조롭다는 사실을 알린다.
+    dup = _duplicate_main_ingredient(meal_plan.items)
+    if dup:
+        warnings.append(
+            f"'{dup}' 재료가 여러 음식에 겹칩니다. 다양하게 드시려면 하나를 바꿔보세요."
+        )
 
     # ── 2. 제외음식/알레르기 (FAIL 엄격) ──
     excluded = list(profile.allergies) + list(conditions.exclude_foods)
@@ -77,6 +108,31 @@ def validate_meal(
         status = "PASS"
 
     return ValidationResult(status=status, warnings=warnings, failures=failures, cause=cause)
+
+
+# 주재료 중복 감지용 대표 단백질 재료. 음식명에 같은 게 2번 이상 나오면 단조로운 한 끼.
+_MAIN_INGREDIENTS = (
+    "닭",
+    "돼지",
+    "소고기",
+    "쇠고기",
+    "생선",
+    "연어",
+    "고등어",
+    "꽁치",
+    "새우",
+    "오리",
+    "두부",
+)
+
+
+def _duplicate_main_ingredient(items) -> str | None:
+    """한 끼에 같은 주재료(닭·생선 등)가 2개 이상 음식에 겹치면 그 재료명을 반환. 없으면 None."""
+    for ing in _MAIN_INGREDIENTS:
+        cnt = sum(1 for f in items if ing in f.food_name)
+        if cnt >= 2:
+            return ing
+    return None
 
 
 # ── 탄단지 에너지비율 (문서 v4 §6) ─────────────────────────────
