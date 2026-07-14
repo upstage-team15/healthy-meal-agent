@@ -23,3 +23,7 @@ dist/
 build/
 docs/
 database/
+
+# 데이터 정제 백업·중간산출
+app/data/*.bak*
+app/data/foods_classified.csv

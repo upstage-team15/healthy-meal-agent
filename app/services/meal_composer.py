@@ -68,8 +68,18 @@ def compose_meal(
         )
 
     # 규칙 점수 상위 후보들을 뽑아, LLM Judge로 '한 끼 자연스러움'까지 반영해 최종 선택.
+    # Judge가 상위 후보 전부를 '한 끼로 부적절'하다고 하면, 그 다음 순위 묶음으로 한 번 더 시도.
     top = _top_distinct(scored, JUDGE_TOP_N)
-    best_type, best_items = _select_best(top, conditions)
+    best_type, best_items, judged_ok = _select_best(top, conditions)
+    if not judged_ok:
+        # 상위 묶음이 전부 어색 → 그 다음 상위 후보들로 재시도(같은 후보 제외)
+        used = {tuple(sorted(f.food_id for f in items)) for _, items in top}
+        remaining = [
+            s for s in scored if tuple(sorted(f.food_id for f in s[2])) not in used
+        ]
+        if remaining:
+            top2 = _top_distinct(remaining, JUDGE_TOP_N)
+            best_type, best_items, _ = _select_best(top2, conditions)
     return MealPlan(meal_type=best_type, items=best_items, reason=_reason(best_type, conditions))
 
 
@@ -92,18 +102,27 @@ def _top_distinct(
 
 def _select_best(
     top: list[tuple[str, list[FoodItem]]], conditions: UserConditions
-) -> tuple[str, list[FoodItem]]:
-    """상위 후보 중 최종 1개 선택. LLM Judge가 가능하면 자연스러움으로 재랭킹, 아니면 1등."""
-    if len(top) <= 1:
-        return top[0]
-    try:
-        from app.services.meal_judge import pick_most_coherent
+) -> tuple[str, list[FoodItem], bool]:
+    """상위 후보 중 최종 1개 선택.
 
-        idx = pick_most_coherent([items for _, items in top], conditions)
-        return top[idx]
+    반환: (형태, 음식들, judged_ok).
+    judged_ok=False면 LLM이 '이 후보들은 한 끼로 다 어색하다'고 판정한 것 →
+    호출부가 다음 순위 후보로 재시도한다.
+    LLM Judge 실패 시 규칙 1등 + judged_ok=True(무중단).
+    """
+    if len(top) <= 1:
+        return top[0][0], top[0][1], True
+    try:
+        from app.services.meal_judge import judge_coherence
+
+        result = judge_coherence([items for _, items in top], conditions)
+        t, items = top[result.choice]
+        if not result.acceptable:
+            print(f"[조합 Judge 거부] {' + '.join(f.food_name for f in items)} — {result.reason}")
+        return t, items, result.acceptable
     except Exception as e:
         print(f"[조합 Judge 실패 → 규칙 1등 사용] {str(e)[:80]}")
-        return top[0]
+        return top[0][0], top[0][1], True
 
 
 def _with_forced(items: list[FoodItem], forced: list[FoodItem]) -> list[FoodItem]:
@@ -234,6 +253,15 @@ def _score(items: list[FoodItem], conditions: UserConditions) -> float:
     # 6) 아주 약한 다양성 유도: 음식 수가 지나치게 적은 것보다 2~3개 조합 선호
     if len(items) == 1:
         penalty += 5
+
+    # 7) 역할 궁합(강한 벌점): 완결형 한 그릇 요리 2개를 같이 먹는 건 부자연스러움
+    #    (예: 비빔밥+콩국수, 죽+국수). 국물요리 2개도 어색.
+    n_onedish = sum(1 for f in items if f.meal_role == "한그릇")
+    if n_onedish >= 2:
+        penalty += 500 * (n_onedish - 1)
+    n_soup = sum(1 for f in items if f.meal_role == "국물")
+    if n_soup >= 2:
+        penalty += 300 * (n_soup - 1)
 
     return penalty
 

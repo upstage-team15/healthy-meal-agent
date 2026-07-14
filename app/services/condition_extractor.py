@@ -117,6 +117,17 @@ def _apply_context_rules(cond: UserConditions, user_message: str) -> UserConditi
         if cond.target_kcal is None:
             cond.target_kcal = 500
             cond.kcal_mode = "upper"
+
+    # 칼로리를 숫자로 안 밝혔지만 '가볍게/다이어트' vs '든든/푸짐' 같은 양(量) 신호가 있으면
+    # 암묵 칼로리 목표로 변환한다. 이게 없으면 "가볍게 아침"에도 827kcal이 나온다(조합기가 무시).
+    # LLM이 target을 준 요청은 그 값을 존중하고 건드리지 않는다.
+    if cond.target_kcal is None:
+        if any(h in text for h in ("가볍게", "가벼운", "다이어트", "간단", "라이트", "부담없")):
+            cond.target_kcal = 450
+            cond.kcal_mode = "upper"
+        elif any(h in text for h in ("든든", "푸짐", "배부르", "많이 먹", "든든하게", "실컷")):
+            cond.target_kcal = 750
+            cond.kcal_mode = "target"
     return cond
 
 

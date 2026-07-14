@@ -78,3 +78,33 @@ def test_low_sodium_combo_keeps_sodium_low():
     mp = _compose(cond)
     na = calculate_nutrition(mp).total_sodium
     assert na <= 1000, f"저염 요청인데 조합 나트륨 {na}mg"
+
+
+def test_no_two_onedish_in_one_plan():
+    """완결형 한 그릇 요리가 한 끼에 2개 들어가지 않는지 (역할 궁합 벌점 회귀 방지)."""
+    for seed in range(6):
+        cond = UserConditions(target_kcal=600)
+        mp = _compose(cond, seed=seed)
+        n_onedish = sum(1 for f in mp.items if f.meal_role == "한그릇")
+        assert n_onedish <= 1, (
+            f"한그릇 {n_onedish}개 조합됨: {[f.food_name for f in mp.items]}"
+        )
+
+
+def test_judge_result_parsing():
+    """LLM 판정 응답(JSON)을 choice/acceptable/reason으로 정확히 파싱하는지."""
+    from app.services.meal_judge import _parse_judge
+
+    ok = _parse_judge('{"choice": 2, "acceptable": true, "reason": "밥+국+반찬 균형"}', n=4)
+    assert ok.choice == 1 and ok.acceptable is True and "균형" in ok.reason
+
+    reject = _parse_judge('설명... {"choice": 1, "acceptable": false, "reason": "다 어색"}', n=3)
+    assert reject.choice == 0 and reject.acceptable is False
+
+    # 범위 벗어난 choice → 0으로 보정
+    oob = _parse_judge('{"choice": 9, "acceptable": true}', n=3)
+    assert oob.choice == 0
+
+    # JSON 깨짐 → 숫자만 뽑아 폴백, 판정은 통과(무중단)
+    fallback = _parse_judge("그냥 2번요", n=4)
+    assert fallback.choice == 1 and fallback.acceptable is True
