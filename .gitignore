@@ -30,3 +30,7 @@ app/data/foods_classified.csv
 
 # 레시피 이미지 프록시 캐시
 .cache/
+
+# 평가 실행 로그 (재생성 가능)
+eval/run.log
+eval/__pycache__/

@@ -166,8 +166,16 @@ def create_graph(
                 return updates
 
         intent = classifier(message)
-        # 어떤 분기로 갔는지 서버 로그로 확인 (디버깅·시연용)
-        print(f"[intent] '{message}' → {intent}")
+        # 코드 안전망: LLM이 need_more_info로 흔들려도, 문장에 실제 조건 신호가 있으면
+        # 되묻지 말고 추천으로 진행한다(예: "얼큰한 거", "가볍게 먹을 거").
+        # intent 자체를 여기서 바로잡아, 최종 state.intent가 실제 진행 경로와 일치하게 한다
+        # (라우팅만 바꾸고 라벨을 need_more_info로 남기면 관찰·평가 시 경로와 어긋난다).
+        if intent == "need_more_info" and _has_condition_signal(message):
+            print(f"[intent] '{message}' → meal_recommend (조건 신호 감지, 되묻기 생략)")
+            intent = "meal_recommend"
+        else:
+            # 어떤 분기로 갔는지 서버 로그로 확인 (디버깅·시연용)
+            print(f"[intent] '{message}' → {intent}")
         updates["intent"] = intent
         return updates
 
