@@ -82,6 +82,8 @@ class GraphState(TypedDict, total=False):
     validation_result: ValidationResult | None
     retry_count: int
     final_response: str
+    wanted_matched: list[FoodItem]  # 사용자가 콕 집은 음식(DB 매칭) → 조합에 강제 포함
+    wanted_missing: list[str]  # 요청했으나 DB에 없는 음식명(안내용)
 
 
 def _flatten_candidates(candidates_by_role: dict[str, list[FoodItem]]) -> list[FoodItem]:
@@ -141,6 +143,25 @@ def create_graph(
             "candidates_by_role": candidates_by_role,
             "candidates": _flatten_candidates(candidates_by_role),
         }
+
+        # 특정 음식 요청(wanted_foods) 처리: 이름으로 DB 매칭.
+        wanted = list(conditions.wanted_foods or [])
+        if wanted:
+            from app.services.food_retriever import load_foods, match_wanted_foods
+
+            matched, missing = match_wanted_foods(wanted, load_foods())
+            # 요청한 음식이 하나도 DB에 없으면 지어내지 않고 솔직히 안내
+            if not matched:
+                updates["final_response"] = (
+                    f"'{', '.join(missing)}'은(는) 저희 데이터에 없어요. "
+                    "다른 음식이나 '담백한/얼큰한' 같은 조건으로 요청해 주시겠어요?"
+                )
+                return updates
+            # 매칭된 음식은 조합에 반드시 포함되도록 상태에 실어 compose로 전달
+            updates["wanted_matched"] = list(matched.values())
+            if missing:
+                updates["wanted_missing"] = missing
+
         if not _has_candidates(candidates_by_role):
             updates["final_response"] = "조건에 맞는 음식을 찾지 못했습니다. 조건을 완화해 주세요."
         return updates
@@ -150,6 +171,7 @@ def create_graph(
             state.get("candidates_by_role", {}),
             state["conditions"],
             seed=state.get("retry_count", 0),
+            must_include=state.get("wanted_matched") or None,
         )
         return {"meal_plan": meal_plan}
 
@@ -183,6 +205,9 @@ def create_graph(
         return updates
 
     def route_after_retrieve(state: GraphState) -> Literal["compose", "end"]:
+        # wanted_foods가 전부 DB에 없어 안내문이 이미 세팅된 경우 즉시 종료
+        if state.get("final_response"):
+            return "end"
         return "compose" if _has_candidates(state.get("candidates_by_role", {})) else "end"
 
     def route_after_validate(state: GraphState) -> Literal["retrieve", "compose", "end"]:
