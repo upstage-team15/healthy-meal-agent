@@ -284,8 +284,8 @@ def inject_global_styles() -> None:
         }
 
         [data-testid="stSidebar"] {
-            width: 232px !important;
-            min-width: 232px !important;
+            width: 288px !important;
+            min-width: 288px !important;
             background: var(--sidebar-bg);
             border-right: 1px solid #edf1f5;
             box-shadow: none;
