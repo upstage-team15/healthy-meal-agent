@@ -227,7 +227,11 @@ def create_graph(
         if wanted:
             from app.services.food_retriever import load_foods, match_wanted_foods
 
-            matched, missing = match_wanted_foods(wanted, load_foods())
+            # 제외 음식(exclude_foods)을 넘겨, "된장찌개 원하지만 부대된장찌개는 말고" 같은
+            # 멀티턴 요청에서 제외 대상이 강제 포함되지 않게 한다.
+            matched, missing = match_wanted_foods(
+                wanted, load_foods(), excluded=list(conditions.exclude_foods or [])
+            )
             # 요청한 음식이 하나도 DB에 없으면 지어내지 않고 솔직히 안내
             if not matched:
                 updates["final_response"] = (
