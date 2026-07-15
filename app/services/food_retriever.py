@@ -68,75 +68,18 @@ def is_dessert(food_name: str) -> bool:
     return any(k in food_name for k in _DESSERT_KEYWORDS)
 
 
-# '음식 종류'를 뜻하는 범용어. 이것만으로 매칭하면 과잉 제외된다.
-# 예: "된장찌개 말고 다른 된장찌개" → '찌개'·'된장'으로 다 지우면 안 됨. 공통어에서 이것들은 무시한다.
-_GENERIC_DISH_WORDS = (
-    "찌개",
-    "국",
-    "밥",
-    "탕",
-    "전골",
-    "볶음",
-    "무침",
-    "조림",
-    "구이",
-    "면",
-    "죽",
-    "된장",
-    "고추장",
-    "간장",
-    "김치",
-    "국물",
-    "정식",
-    "백반",
-    "한식",
-)
-
-
-def _distinctive_overlap(term: str, name: str) -> bool:
-    """제외어와 음식명이 '범용어가 아닌' 2글자+ 조각을 공유하는지.
-
-    "부대된장찌개"(제외) vs "맑은부대찌개"(후보) → 공통 "부대" (범용어 아님) → True.
-    "된장찌개"(제외) vs "된장국"(후보) → 공통은 "된장"뿐(범용어) → False (다른 된장요리는 살림).
-    """
-    # 범용어를 뺀 제외어에서 2글자 윈도우를 뽑아, 그게 음식명에 있으면 매칭.
-    reduced = term
-    for w in _GENERIC_DISH_WORDS:
-        reduced = reduced.replace(w, " ")
-    for chunk in reduced.split():
-        for i in range(len(chunk) - 1):
-            frag = chunk[i : i + 2]  # 2글자 조각
-            if frag in name:
-                return True
-    return False
-
-
 def contains_excluded(food: FoodItem, excluded: list[str]) -> bool:
-    """알레르기·제외 재료/음식이 후보에 해당하는지 — 이름뿐 아니라 '재료'까지 검사한다.
+    """알레르기·제외 재료/음식이 후보에 들어있는지 — 이름뿐 아니라 '재료'까지 검사한다.
 
-    두 가지 상황을 모두 잡는다:
-    1) 재료·성분 제외("계란"): 제외어가 이름/재료에 통째로 들어있으면 제외.
-       - 이름만 보면 '양배추감자전'(반죽에 계란)처럼 안 드러난 알레르겐을 놓쳐, ingredients 원문도 본다.
-    2) 특정 음식 제외("부대된장찌개 말고 다른 된장찌개"): 글자가 정확히 안 맞아도
-       '범용어(된장·찌개 등)를 뺀 고유 부분'이 겹치면 제외한다.
-       "부대된장찌개"(제외)에서 고유어 "부대"가 "맑은부대찌개"(후보)에 있으므로 걸러지고,
-       "된장국" 같은 다른 된장요리는 고유어가 안 겹쳐 살아남는다. 멀티턴 "다른 걸로"에 필수.
+    제외어가 이름/재료에 들어있으면 제외한다. 이름만 보면 '양배추감자전'(반죽에 계란)처럼
+    안 드러난 알레르겐을 놓쳐, ingredients 원문도 함께 본다.
+
+    설계 원칙("판단은 LLM, 실행은 코드"): '무엇을 뺄지'는 extractor(LLM)가 판단한다.
+    "부대된장찌개 말고 다른 된장찌개" 같은 요청은 LLM이 exclude=["부대"], wanted=["된장찌개"]로
+    뽑아주므로, 코드는 그 결과를 단순 부분일치로 실행만 한다("부대"가 "맑은부대찌개"에 포함 → 제외).
     """
     haystack = f"{food.food_name} {food.ingredients or ''}"
-    name = food.food_name
-    for term in excluded:
-        if not term:
-            continue
-        # (1) 통째 포함 — 재료/성분 제외의 기본 경로
-        if term in haystack:
-            return True
-        # (2) 음식명이 제외어에 통째로 포함
-        if name and name in term:
-            return True
-        # (3) 범용어를 뺀 '고유 조각' 겹침 — 완성 음식명이 다른 표기로 흩어져 있을 때
-        if _distinctive_overlap(term, name):
-            return True
-    return False
+    return any(x and x in haystack for x in excluded)
 
 
 # '밥' 역할로 분류돼 있지만 실제로는 그 자체로 완성된 한 그릇인 것들.
