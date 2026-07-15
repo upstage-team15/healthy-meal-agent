@@ -68,14 +68,75 @@ def is_dessert(food_name: str) -> bool:
     return any(k in food_name for k in _DESSERT_KEYWORDS)
 
 
-def contains_excluded(food: FoodItem, excluded: list[str]) -> bool:
-    """알레르기·제외 재료가 음식에 들어있는지 — 이름뿐 아니라 '재료'까지 검사한다.
+# '음식 종류'를 뜻하는 범용어. 이것만으로 매칭하면 과잉 제외된다.
+# 예: "된장찌개 말고 다른 된장찌개" → '찌개'·'된장'으로 다 지우면 안 됨. 공통어에서 이것들은 무시한다.
+_GENERIC_DISH_WORDS = (
+    "찌개",
+    "국",
+    "밥",
+    "탕",
+    "전골",
+    "볶음",
+    "무침",
+    "조림",
+    "구이",
+    "면",
+    "죽",
+    "된장",
+    "고추장",
+    "간장",
+    "김치",
+    "국물",
+    "정식",
+    "백반",
+    "한식",
+)
 
-    이름만 보면 '양배추감자전'(반죽에 계란)처럼 이름에 안 드러난 알레르겐을 놓친다.
-    알레르기는 안전 문제라 ingredients 원문까지 함께 본다.
+
+def _distinctive_overlap(term: str, name: str) -> bool:
+    """제외어와 음식명이 '범용어가 아닌' 2글자+ 조각을 공유하는지.
+
+    "부대된장찌개"(제외) vs "맑은부대찌개"(후보) → 공통 "부대" (범용어 아님) → True.
+    "된장찌개"(제외) vs "된장국"(후보) → 공통은 "된장"뿐(범용어) → False (다른 된장요리는 살림).
+    """
+    # 범용어를 뺀 제외어에서 2글자 윈도우를 뽑아, 그게 음식명에 있으면 매칭.
+    reduced = term
+    for w in _GENERIC_DISH_WORDS:
+        reduced = reduced.replace(w, " ")
+    for chunk in reduced.split():
+        for i in range(len(chunk) - 1):
+            frag = chunk[i : i + 2]  # 2글자 조각
+            if frag in name:
+                return True
+    return False
+
+
+def contains_excluded(food: FoodItem, excluded: list[str]) -> bool:
+    """알레르기·제외 재료/음식이 후보에 해당하는지 — 이름뿐 아니라 '재료'까지 검사한다.
+
+    두 가지 상황을 모두 잡는다:
+    1) 재료·성분 제외("계란"): 제외어가 이름/재료에 통째로 들어있으면 제외.
+       - 이름만 보면 '양배추감자전'(반죽에 계란)처럼 안 드러난 알레르겐을 놓쳐, ingredients 원문도 본다.
+    2) 특정 음식 제외("부대된장찌개 말고 다른 된장찌개"): 글자가 정확히 안 맞아도
+       '범용어(된장·찌개 등)를 뺀 고유 부분'이 겹치면 제외한다.
+       "부대된장찌개"(제외)에서 고유어 "부대"가 "맑은부대찌개"(후보)에 있으므로 걸러지고,
+       "된장국" 같은 다른 된장요리는 고유어가 안 겹쳐 살아남는다. 멀티턴 "다른 걸로"에 필수.
     """
     haystack = f"{food.food_name} {food.ingredients or ''}"
-    return any(x and x in haystack for x in excluded)
+    name = food.food_name
+    for term in excluded:
+        if not term:
+            continue
+        # (1) 통째 포함 — 재료/성분 제외의 기본 경로
+        if term in haystack:
+            return True
+        # (2) 음식명이 제외어에 통째로 포함
+        if name and name in term:
+            return True
+        # (3) 범용어를 뺀 '고유 조각' 겹침 — 완성 음식명이 다른 표기로 흩어져 있을 때
+        if _distinctive_overlap(term, name):
+            return True
+    return False
 
 
 # '밥' 역할로 분류돼 있지만 실제로는 그 자체로 완성된 한 그릇인 것들.
@@ -144,7 +205,9 @@ _GENERIC_FOOD_WORDS = {
 }
 
 
-def match_wanted_foods(wanted: list[str], foods: list["FoodItem"]) -> tuple[dict, list[str]]:
+def match_wanted_foods(
+    wanted: list[str], foods: list["FoodItem"], excluded: list[str] | None = None
+) -> tuple[dict, list[str]]:
     """
     사용자가 원한 음식명(여러 개 가능)을 DB 음식과 부분일치로 매칭한다.
     반환: ({원문: 매칭된 FoodItem}, [DB에 없는 원문들])
@@ -152,7 +215,11 @@ def match_wanted_foods(wanted: list[str], foods: list["FoodItem"]) -> tuple[dict
     예) "김치찌개" → "닭고기김치찌개" 매칭. "존재안함" → 미매칭 목록에 담김.
     한 원문에 여러 후보가 걸리면 이름이 가장 짧은(=가장 대표적인) 것을 고른다.
     '국/밥' 같은 분류어는 특정 음식이 아니므로 매칭/미매칭 어디에도 넣지 않고 무시한다.
+
+    excluded: 제외 음식/재료. "된장찌개 원하지만 부대된장찌개는 말고"처럼, 원한 음식 계열
+    안에서도 제외 대상은 강제 포함 후보에서 뺀다(멀티턴 '다른 걸로'에 필수).
     """
+    excluded = [x for x in (excluded or []) if x]
     matched: dict[str, FoodItem] = {}
     missing: list[str] = []
     for term in wanted:
@@ -162,6 +229,9 @@ def match_wanted_foods(wanted: list[str], foods: list["FoodItem"]) -> tuple[dict
         hits = [f for f in foods if key in f.food_name.replace(" ", "")]
         # 디저트는 한 끼 요청 매칭 대상에서 제외
         hits = [f for f in hits if not is_dessert(f.food_name)]
+        # 제외 대상은 강제 포함 후보에서 뺀다("부대된장찌개 말고 다른 된장찌개")
+        if excluded:
+            hits = [f for f in hits if not contains_excluded(f, excluded)]
         if hits:
             matched[term] = min(hits, key=lambda f: len(f.food_name))
         else:
