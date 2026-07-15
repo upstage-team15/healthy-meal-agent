@@ -17,17 +17,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 _ROUTER = None  # litellm.Router 캐시
-_PRIMARY = "solar"  # Router model_list의 논리 이름(호출 시 이 이름을 model로 넘긴다)
+_PRIMARY = "primary"  # 항상 이 이름으로 호출한다(=Solar). 실패 시에만 backup으로 폴백.
+_BACKUP = "backup"  # OpenAI 보험 모델의 논리 이름
 
 
 def _build_router():
-    """Solar(메인) + OpenAI(보험) Router 생성. OpenAI 키 없으면 Solar만."""
+    """Solar(메인) + OpenAI(보험) Router 생성. OpenAI 키 없으면 Solar만.
+
+    두 모델의 model_name을 '다르게'(primary/backup) 두고 fallbacks로 연결한다.
+    같은 이름으로 두면 Router가 둘을 로드밸런싱(랜덤 분배)해 Solar 우선이 깨지므로,
+    반드시 이름을 분리해야 'Solar 먼저, 실패 시에만 OpenAI'가 보장된다.
+    """
     from litellm import Router
 
     solar_model = os.getenv("LLM_MODEL", "solar-pro3")
     model_list = [
         {
-            "model_name": _PRIMARY,  # 논리 이름
+            "model_name": _PRIMARY,  # 항상 이걸로 호출 → Solar가 1순위
             "litellm_params": {
                 "model": "openai/" + solar_model,  # openai 호환 형식 + upstage api_base
                 "api_key": os.getenv("UPSTAGE_API_KEY"),
@@ -39,10 +45,10 @@ def _build_router():
     fallbacks = []
     openai_key = os.getenv("OPENAI_API_KEY")
     if openai_key:
-        # 보험 모델도 같은 논리 이름으로 등록 → Solar 실패 시 이 그룹으로 넘어감
+        # 보험 모델은 '다른 이름'(backup)으로 등록 → Solar(primary) 실패 시에만 여기로 폴백
         model_list.append(
             {
-                "model_name": _PRIMARY,
+                "model_name": _BACKUP,
                 "litellm_params": {
                     "model": os.getenv("FALLBACK_MODEL", "gpt-4o-mini"),
                     "api_key": openai_key,
@@ -50,8 +56,8 @@ def _build_router():
                 },
             }
         )
-        # 명시적 fallback 규칙도 등록(같은 그룹 내 순차 시도 + 방어적 이중화)
-        fallbacks = [{_PRIMARY: [_PRIMARY]}]
+        # primary(Solar) 실패 → backup(OpenAI) 순차 폴백
+        fallbacks = [{_PRIMARY: [_BACKUP]}]
 
     return Router(
         model_list=model_list,
