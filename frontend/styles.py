@@ -858,28 +858,6 @@ def inject_global_styles() -> None:
             font-weight: 750;
         }
 
-        .message-actions {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .copy-btn {
-            height: 26px;
-            padding: 0 9px;
-            border: 1px solid var(--line);
-            border-radius: 999px;
-            background: var(--surface);
-            color: var(--muted);
-            font: 700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            cursor: pointer;
-        }
-
-        .copy-btn:hover {
-            border-color: var(--blue);
-            color: var(--blue);
-        }
-
         .message-bubble {
             padding: 15px 17px;
             border-radius: var(--radius-md);

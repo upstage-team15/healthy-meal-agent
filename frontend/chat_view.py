@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import json
 import re
 from typing import Any
 from urllib.parse import quote_plus
@@ -58,10 +57,8 @@ def render_suggestion_buttons() -> str | None:
 def render_message(message: dict) -> None:
     role = message.get("role", "assistant")
     role_label = "나" if role == "user" else "Healthy Meal Agent"
-    created_at = message.get("created_at", "")
     content = message.get("content", "")
     attachments = message.get("attachments", [])
-    message_id = re.sub(r"[^A-Za-z0-9_]", "_", f"copy_{message.get('id', '')}")
 
     attachment_html = ""
     if attachments:
@@ -76,10 +73,6 @@ def render_message(message: dict) -> None:
             <div class="message-stack">
                 <div class="message-meta">
                     <span>{html.escape(role_label)}</span>
-                    <span class="message-actions">
-                        <span>{html.escape(created_at)}</span>
-                        <button id="{message_id}" class="copy-btn" type="button">복사</button>
-                    </span>
                 </div>
                 <div class="message-bubble">
                     {_markdownish_to_html(content)}
@@ -87,19 +80,7 @@ def render_message(message: dict) -> None:
                 </div>
             </div>
         </div>
-        <script>
-        (() => {{
-          const btn = document.getElementById({json.dumps(message_id)});
-          if (!btn) return;
-          btn.addEventListener('click', async () => {{
-            await navigator.clipboard.writeText({json.dumps(content)});
-            btn.textContent = '복사됨';
-            setTimeout(() => {{ btn.textContent = '복사'; }}, 1000);
-          }});
-        }})();
-        </script>
         """,
-        unsafe_allow_javascript=True,
     )
 
     if role == "assistant":
