@@ -255,10 +255,18 @@ def create_graph(
             seed=state.get("retry_count", 0),
             must_include=state.get("wanted_matched") or None,
         )
+        names = " + ".join(f.food_name for f in meal_plan.items)
+        print(f"[compose] {meal_plan.meal_type} 조합: {names}")
         return {"meal_plan": meal_plan}
 
     def calculate_node(state: GraphState) -> GraphState:
-        return {"nutrition_total": calculate_nutrition(state["meal_plan"])}
+        nutrition = calculate_nutrition(state["meal_plan"])
+        print(
+            f"[calculate] 합산: {nutrition.total_kcal:.0f}kcal / "
+            f"탄{nutrition.total_carbohydrate:.0f}g 단{nutrition.total_protein:.0f}g "
+            f"지{nutrition.total_fat:.0f}g / 나트륨 {nutrition.total_sodium:.0f}mg"
+        )
+        return {"nutrition_total": nutrition}
 
     def validate_node(state: GraphState) -> GraphState:
         validation_result = validate_meal(
@@ -269,6 +277,11 @@ def create_graph(
         )
         updates: GraphState = {"validation_result": validation_result}
 
+        reasons = validation_result.warnings + validation_result.failures
+        detail = f" — {'; '.join(reasons)}" if reasons else ""
+        cause = f" (원인={validation_result.cause})" if validation_result.cause else ""
+        print(f"[validate] {validation_result.status}{cause}{detail}")
+
         if validation_result.status in ("PASS", "PASS_WITH_WARNING"):
             from app.agents.meal_agent import build_final_response
 
@@ -278,8 +291,10 @@ def create_graph(
 
         retry_count = state.get("retry_count", 0)
         if retry_count < MAX_RETRY:
+            print(f"[retry] {retry_count + 1}/{MAX_RETRY} → {validation_result.cause}로 되돌아감")
             updates["retry_count"] = retry_count + 1
             return updates
+        print("[retry] 소진 → 정직한 안내문 반환")
 
         updates["final_response"] = _build_giveup_message(
             state["conditions"], state.get("meal_plan"), validation_result
