@@ -11,6 +11,12 @@ API_BASE_URL = os.getenv("HEALTHY_MEAL_API_URL", "http://127.0.0.1:8000").rstrip
 CHAT_SYNC_URL = f"{API_BASE_URL}/api/v1/chat/sync"
 CHAT_STREAM_URL = f"{API_BASE_URL}/api/v1/chat"
 
+# 브라우저가 '직접' 요청하는 URL(레시피 이미지 프록시 등)에 쓰는 공개 주소.
+# API_BASE_URL은 서버-서버 통신용이라 배포 시 도커 내부 이름(http://api:8000)이 될 수 있는데,
+# 그건 브라우저가 못 찾는다. 이미지 <img src=...>는 브라우저가 로드하므로 공개 주소가 필요하다.
+# 미설정 시 API_BASE_URL로 폴백(로컬 개발에선 둘이 같아 무영향).
+PUBLIC_API_BASE_URL = os.getenv("HEALTHY_MEAL_PUBLIC_API_URL", API_BASE_URL).rstrip("/")
+
 
 def build_agent_payload(api_response: dict) -> dict | None:
     meal_type = api_response.get("meal_type")

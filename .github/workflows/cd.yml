@@ -137,6 +137,8 @@ jobs:
                   - "8501:8501"
                 environment:
                   - HEALTHY_MEAL_API_URL=http://api:8000
+                  # 브라우저가 직접 로드하는 레시피 이미지 프록시용 공개 주소 (http://api:8000은 브라우저가 못 찾음)
+                  - HEALTHY_MEAL_PUBLIC_API_URL=http://${{ secrets.GCE_HOST }}:8000
                 depends_on:
                   api:
                     condition: service_healthy
