@@ -133,6 +133,32 @@ def _has_candidates(candidates_by_role: dict[str, list[FoodItem]]) -> bool:
     return any(candidates_by_role.values())
 
 
+def _wanted_allergy_conflict(wanted, allergies, foods, contains_excluded):
+    """요청한 음식이 DB엔 있지만 그 계열 전부가 알레르기 재료를 포함하는 경우를 찾는다.
+
+    반환: (충돌한 요청 음식들, 원인 알레르기들) 문자열 튜플 — 없으면 None.
+    예) 알레르기 '된장' + 요청 '된장찌개' → DB의 된장찌개 계열이 전부 '된장' 포함 → 충돌.
+    일부만 알레르기라 안전한 대안이 남으면 충돌이 아니다(그건 그대로 추천).
+    """
+    conflict_foods, cause_allergens = [], set()
+    for term in wanted:
+        key = term.replace(" ", "")
+        hits = [f for f in foods if key in f.food_name.replace(" ", "")]
+        if not hits:
+            continue  # DB에 아예 없는 건 별도 '데이터에 없음' 안내가 처리
+        safe = [f for f in hits if not contains_excluded(f, allergies)]
+        if not safe:  # 이 요청 음식 계열이 전부 알레르기 재료 포함 → 충돌
+            conflict_foods.append(term)
+            cause_allergens.update(
+                a
+                for a in allergies
+                if any(a in f"{f.food_name} {f.ingredients or ''}" for f in hits)
+            )
+    if conflict_foods:
+        return ", ".join(conflict_foods), ", ".join(sorted(cause_allergens))
+    return None
+
+
 def create_graph(
     extractor: Callable[[str], UserConditions],
     classifier: Callable[[str], IntentType] = classify_intent_stub,
@@ -225,12 +251,33 @@ def create_graph(
         # 특정 음식 요청(wanted_foods) 처리: 이름으로 DB 매칭.
         wanted = list(conditions.wanted_foods or [])
         if wanted:
-            from app.services.food_retriever import load_foods, match_wanted_foods
+            from app.services.food_retriever import (
+                contains_excluded,
+                load_foods,
+                match_wanted_foods,
+            )
 
-            # 제외 음식(exclude_foods)을 넘겨, "된장찌개 원하지만 부대된장찌개는 말고" 같은
-            # 멀티턴 요청에서 제외 대상이 강제 포함되지 않게 한다.
+            all_foods = load_foods()
+            allergies = [a for a in (profile.allergies or []) if a]
+
+            # 안전 우선: 요청한 음식 자체에 알레르기 재료가 들어있으면(예: '된장' 알레르기 +
+            # '된장찌개' 요청) 조용히 거르지 말고 그 충돌을 분명히 알린다.
+            if allergies:
+                conflict = _wanted_allergy_conflict(wanted, allergies, all_foods, contains_excluded)
+                if conflict:
+                    foods_txt, alg_txt = conflict
+                    updates["final_response"] = (
+                        f"요청하신 '{foods_txt}'에는 알레르기·못 드시는 재료 '{alg_txt}'이(가) "
+                        "들어있어 추천에서 제외했어요. 다른 음식으로 요청해 주시겠어요?"
+                    )
+                    return updates
+
+            # 제외 음식(exclude_foods)·알레르기를 넘겨, "된장찌개 원하지만 부대된장찌개는 말고"
+            # 같은 요청에서 제외/알레르기 대상이 강제 포함되지 않게 한다.
             matched, missing = match_wanted_foods(
-                wanted, load_foods(), excluded=list(conditions.exclude_foods or [])
+                wanted,
+                all_foods,
+                excluded=list(conditions.exclude_foods or []) + allergies,
             )
             # 요청한 음식이 하나도 DB에 없으면 지어내지 않고 솔직히 안내
             if not matched:
