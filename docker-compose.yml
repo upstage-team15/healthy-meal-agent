@@ -39,8 +39,12 @@ services:
     ports:
       - "8501:8501"
     environment:
-      # UI는 같은 compose 네트워크의 api 서비스를 호출 (컨테이너명=호스트명)
+      # UI 서버→API 서버 통신은 compose 네트워크 내부 이름 사용 (컨테이너명=호스트명)
       - HEALTHY_MEAL_API_URL=http://api:8000
+      # 브라우저가 '직접' 로드하는 레시피 이미지 프록시는 공개 주소가 필요하다.
+      # (http://api:8000은 브라우저가 못 찾음). 배포 시 PUBLIC_API_URL로 서버 공개주소를 주입.
+      # 미설정 시 http://api:8000로 폴백되어 이미지가 안 뜨므로, 배포 환경에선 반드시 설정할 것.
+      - HEALTHY_MEAL_PUBLIC_API_URL=${PUBLIC_API_URL:-http://api:8000}
     depends_on:
       api:
         condition: service_healthy

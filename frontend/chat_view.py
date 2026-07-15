@@ -238,9 +238,11 @@ def _proxied(url: str) -> str:
     원본(foodsafetykorea)은 사진 폭주 시 IP를 rate-limit으로 막는다. 백엔드가 한 번만
     받아 캐시하므로 브라우저는 우리 서버에서만 로드 → 모든 단계 사진을 순서대로 보여줄 수 있다.
     """
-    from api_client import API_BASE_URL
+    # 브라우저가 직접 로드하는 <img> 소스라, 서버-서버용(API_BASE_URL, 배포 시 http://api:8000)이
+    # 아니라 브라우저가 접근 가능한 공개 주소(PUBLIC_API_BASE_URL)를 써야 한다.
+    from api_client import PUBLIC_API_BASE_URL
 
-    return f"{API_BASE_URL}/api/v1/recipe-image?url={quote_plus(url)}"
+    return f"{PUBLIC_API_BASE_URL}/api/v1/recipe-image?url={quote_plus(url)}"
 
 
 def _youtube_search_url(food_name: str) -> str:

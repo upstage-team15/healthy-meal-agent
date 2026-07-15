@@ -609,8 +609,8 @@ def inject_global_styles() -> None:
             color: var(--text) !important;
             font-size: 15px !important;
             line-height: 1.45 !important;
-            box-shadow: 0 8px 22px rgba(35, 62, 75, 0.09) !important;
-            backdrop-filter: blur(12px);
+            box-shadow: 0 1px 2px rgba(35, 62, 75, 0.06) !important;
+            backdrop-filter: none !important;
         }
 
         .st-key-welcome_stage [data-testid="stChatInput"] textarea {
@@ -621,8 +621,8 @@ def inject_global_styles() -> None:
             border-radius: 999px !important;
             background: rgba(255, 255, 255, 0.94) !important;
             font-size: 15px !important;
-            box-shadow: 0 12px 34px rgba(37, 63, 78, 0.12) !important;
-            backdrop-filter: blur(10px);
+            box-shadow: 0 1px 2px rgba(37, 63, 78, 0.06) !important;
+            backdrop-filter: none !important;
         }
 
         [data-testid="stChatInput"] textarea::placeholder {
